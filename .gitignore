@@ -1,0 +1,7 @@
+.DS_Store
+node_modules/
+
+# Private: demo loops and their names, agent notes, local tool settings
+local/
+CLAUDE.md
+.claude/

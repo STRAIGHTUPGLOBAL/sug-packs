@@ -1,0 +1,296 @@
+/* Swipe, pack, result and sheet. */
+
+/* Swipe ------------------------------------------------------------------- */
+
+.swipe {
+  display: flex;
+  flex-direction: column;
+  height: calc(100svh - var(--safe-top) - var(--safe-bottom) - 52px);
+  min-height: 560px;
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+.swipe-top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 56px; }
+.swipe-top .icon-button { justify-self: start; margin-left: -8px; }
+.swipe-count { color: var(--text-2); font-size: 15px; font-weight: 500; }
+.swipe-done {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 6px 0 14px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-strong);
+  font-size: 15px;
+  font-weight: 500;
+  transition: background-color 200ms ease, transform 260ms var(--spring);
+}
+.swipe-done:hover { background: rgba(255, 255, 255, 0.14); }
+.swipe-done:active { transform: scale(0.95); }
+.swipe-done b { display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 12px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; }
+.swipe-done b.bump { animation: badge-bump 420ms var(--spring); }
+@keyframes badge-bump { 40% { transform: scale(1.3); } }
+
+.deck { position: relative; flex: 1; min-height: 0; margin: 12px 0 28px; }
+
+.card {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: #0E0E12;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transform-origin: 50% 100%;
+  will-change: transform;
+  cursor: grab;
+}
+.card:active { cursor: grabbing; }
+
+/* The cover: the loop's gradient fills the card and breathes while it plays. */
+.card-cover {
+  position: absolute;
+  inset: -4%;
+  background: var(--cover);
+  transform-origin: 40% 30%;
+  transition: filter 700ms ease;
+}
+.card-cover::after {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.1;
+  mix-blend-mode: overlay;
+  content: "";
+}
+.card:not(.is-playing) .card-cover { filter: saturate(0.9) brightness(0.9); }
+.card.is-playing .card-cover { animation: breathe 9s ease-in-out infinite alternate; }
+@keyframes breathe { from { transform: scale(1); } to { transform: scale(1.08) rotate(1.5deg); } }
+
+.card-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(7, 7, 10, 0) 42%, rgba(7, 7, 10, 0.45) 62%, rgba(7, 7, 10, 0.9) 100%); }
+
+.card.is-next { transform: translateY(16px) scale(0.94); opacity: 0.5; pointer-events: none; transition: transform 460ms var(--ease-out), opacity 460ms ease; }
+.card.is-next > .card-center, .card.is-next > .card-info { opacity: 0; }
+.card.is-next.is-entering { animation: next-in 560ms var(--ease-out) backwards; }
+.card.is-first { animation: card-in 700ms var(--ease-out) 120ms backwards; }
+.card.is-settling { transition: transform 520ms var(--spring); }
+.card.is-flying { transition: transform 380ms cubic-bezier(0.4, 0, 0.9, 0.6), opacity 380ms ease; }
+.card.is-returning { animation: card-return 520ms var(--ease-out); }
+@keyframes next-in { from { opacity: 0; transform: translateY(40px) scale(0.88); } }
+@keyframes card-in { from { opacity: 0; transform: translateY(28px) scale(0.96); } }
+@keyframes card-return { from { transform: translateX(var(--from, -120%)) rotate(var(--rot, -12deg)); opacity: 0; } }
+
+/* Front card content settles in a beat after the card itself. */
+.card:not(.is-next) .card-info > * { transition: opacity 400ms ease, transform 500ms var(--ease-out); }
+.card.is-promoting .card-info > * { opacity: 0; transform: translateY(8px); }
+
+/* The verdict: the card tints and one symbol appears as you drag. */
+.card-verdict { position: absolute; z-index: 3; inset: 0; display: grid; place-items: center; opacity: 0; pointer-events: none; }
+.card-verdict span { display: grid; place-items: center; width: 88px; height: 88px; border-radius: 50%; transform: scale(calc(0.6 + var(--pull, 0) * 0.4)); }
+.card-verdict .icon { width: 40px; height: 40px; stroke-width: 2.2; }
+.card-verdict--keep { background: rgba(73, 84, 230, 0.35); }
+.card-verdict--keep span { background: var(--accent); color: #fff; box-shadow: 0 16px 40px rgba(73, 84, 230, 0.5); }
+.card-verdict--skip { background: rgba(0, 0, 0, 0.5); }
+.card-verdict--skip span { background: rgba(255, 255, 255, 0.16); color: #fff; }
+.card[data-lean="keep"] .card-verdict--keep, .card[data-lean="skip"] .card-verdict--skip { opacity: var(--pull, 0); }
+
+.card-center { position: absolute; z-index: 1; inset: 0 0 44% 0; display: grid; place-items: center; align-content: center; gap: 14px; pointer-events: none; }
+.card-play {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  color: #fff;
+  transition: opacity 360ms ease, transform 460ms var(--spring);
+}
+.card-play .icon { width: 28px; height: 28px; margin-left: 3px; fill: currentColor; stroke: none; }
+.card-hint { color: rgba(255, 255, 255, 0.85); font-size: 15px; font-weight: 500; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.4); transition: opacity 300ms ease; }
+.card.is-playing .card-play { opacity: 0; transform: scale(0.7); }
+.card:not(.is-locked) .card-hint { opacity: 0; }
+
+.card-info { position: absolute; z-index: 1; left: 0; right: 0; bottom: 0; padding: 24px 24px 14px; }
+.card-title { font-size: clamp(30px, 9vw, 38px); font-weight: 600; line-height: 1.05; letter-spacing: -0.035em; overflow-wrap: anywhere; }
+.card-meta { margin-top: 6px; color: rgba(255, 255, 255, 0.72); font-size: 16px; }
+.card-tags { display: flex; flex-wrap: wrap; gap: 6px; max-height: 62px; margin-top: 14px; overflow: hidden; }
+.card-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.13);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  font-weight: 500;
+}
+.card-progress { margin-top: 12px; padding: 10px 0; cursor: pointer; touch-action: none; }
+.card-progress div { height: 3px; overflow: hidden; border-radius: 2px; background: rgba(255, 255, 255, 0.2); }
+.card-progress i { display: block; width: 0; height: 100%; border-radius: inherit; background: #fff; }
+
+.swipe-actions { display: flex; align-items: center; justify-content: center; gap: 28px; }
+.action {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  transition: transform 300ms var(--spring), background-color 200ms ease, opacity 250ms ease, box-shadow 300ms ease;
+}
+.action .icon { width: 28px; height: 28px; stroke-width: 2; }
+.action:hover { background: var(--surface-hover); }
+.action:active { transform: scale(0.86); transition-duration: 90ms; }
+.action--keep { border-color: transparent; background: var(--accent); color: #fff; box-shadow: 0 14px 36px -12px rgba(73, 84, 230, 0.9); }
+.action--keep:hover { background: var(--accent-hover); }
+.action--undo { width: 48px; height: 48px; border-color: transparent; background: none; color: var(--text-3); }
+.action--undo .icon { width: 22px; height: 22px; stroke-width: 1.75; }
+.action--undo:hover { color: var(--text); background: var(--surface); }
+.action:disabled { opacity: 0.25; pointer-events: none; }
+.action.is-hit { animation: hit 380ms var(--spring); }
+@keyframes hit { 35% { transform: scale(0.84); } }
+
+/* Pack --------------------------------------------------------------------- */
+
+.pack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.pack .list + .list { margin-top: 0; }
+.pack .list-label { margin-top: 0; }
+.cut { display: inline-block; max-width: 16em; overflow: hidden; vertical-align: bottom; white-space: pre; transition: max-width 480ms var(--ease-out), opacity 260ms ease; }
+.cut.is-cut { max-width: 0; opacity: 0; }
+.row--skipped .row-title { color: var(--text-2); }
+.row--skipped .thumb { opacity: 0.6; }
+.skipped-toggle { justify-self: start; margin: -8px 0 0 4px; }
+
+/* The main action on its own, over a soft fade instead of a container. */
+.cta {
+  position: fixed;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 48px var(--gutter) calc(var(--safe-bottom) + 16px);
+  background: linear-gradient(180deg, rgba(7, 7, 10, 0), rgba(7, 7, 10, 0.92) 42%, var(--bg));
+  pointer-events: none;
+  animation: cta-in 620ms var(--ease-out) 160ms backwards;
+}
+.cta-inner { display: grid; gap: 10px; max-width: 420px; margin: 0 auto; pointer-events: auto; }
+@keyframes cta-in { from { opacity: 0; transform: translateY(20px); } }
+
+/* Result: creating, then done. ----------------------------------------------- */
+
+.result {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 8px;
+  min-height: calc(100svh - var(--safe-top) - var(--safe-bottom) - 250px);
+  text-align: center;
+}
+.result > * { animation: rise 600ms var(--ease-out) backwards; }
+.result > :nth-child(2) { animation-delay: 120ms; }
+.result > :nth-child(3) { animation-delay: 180ms; }
+.result > :nth-child(4) { animation-delay: 240ms; }
+
+.result-art { position: relative; margin-bottom: 20px; }
+.result-cover {
+  width: 148px;
+  height: 148px;
+  border-radius: 30px;
+  background: var(--cover);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.result > .result-art, .result > .result-cover { animation: cover-in 800ms var(--ease-out) backwards; }
+.result-cover.is-working { animation: cover-in 800ms var(--ease-out) backwards, working 1.4s ease-in-out 800ms infinite alternate; }
+.result-badge {
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--bg);
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  animation: pop 560ms var(--spring) 420ms backwards;
+}
+.result-badge .icon { width: 20px; height: 20px; stroke-width: 2.8; stroke-dasharray: 30; stroke-dashoffset: 30; animation: draw 420ms var(--ease-out) 760ms forwards; }
+.result-title { max-width: 100%; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.result-sub { color: var(--text-2); }
+.progress { width: 180px; height: 3px; margin-top: 16px; overflow: hidden; border-radius: 2px; background: var(--surface-strong); }
+.progress i { display: block; width: 0; height: 100%; background: var(--accent-hover); transition: width 300ms var(--ease-out); }
+.progress.progress--full { width: 100%; margin: 16px 0 0; }
+@keyframes cover-in { from { opacity: 0; transform: translateY(16px) scale(0.86); filter: blur(10px); } }
+@keyframes working { to { transform: scale(0.96); filter: brightness(0.85); } }
+@keyframes pop { from { opacity: 0; transform: scale(0.3); } }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+/* Sheet -------------------------------------------------------------------- */
+
+.sheet-layer { position: fixed; z-index: 100; inset: 0; display: flex; align-items: flex-end; justify-content: center; }
+.sheet-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); animation: fade-in 320ms ease; }
+.sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 92svh;
+  overflow: hidden;
+  border-top: 1px solid var(--hairline-strong);
+  border-radius: 28px 28px 0 0;
+  background: rgba(20, 20, 26, 0.9);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  animation: sheet-up 560ms var(--ease-out);
+}
+.sheet-grab { width: 36px; height: 5px; margin: 8px auto 0; flex: none; border-radius: 3px; background: rgba(255, 255, 255, 0.18); }
+/* Next loop in the queue: the sheet stays, its contents rise in. */
+.sheet.is-swapped { animation: none; }
+.sheet.is-swapped > :not(.sheet-grab) { animation: rise 460ms var(--ease-out) backwards; }
+.sheet.is-swapped > .sheet-body { animation-delay: 60ms; }
+.is-closing .sheet { animation: sheet-down 260ms var(--ease-in-out) forwards; }
+.is-closing .sheet-scrim { animation: fade-out 260ms ease forwards; }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes sheet-up { from { transform: translateY(100%); } }
+@keyframes sheet-down { to { transform: translateY(100%); } }
+
+@media (min-width: 720px) {
+  .sheet-layer { align-items: center; padding: 32px; }
+  .sheet { max-width: 520px; max-height: min(86vh, 820px); border: 1px solid var(--hairline-strong); border-radius: 28px; animation: panel-in 440ms var(--ease-out); }
+  .sheet-grab { display: none; }
+  .is-closing .sheet { animation: panel-out 220ms ease forwards; }
+  @keyframes panel-in { from { opacity: 0; transform: translateY(16px) scale(0.97); } }
+  @keyframes panel-out { to { opacity: 0; transform: scale(0.97); } }
+}
+
+.sheet-head { display: flex; align-items: center; gap: 14px; padding: 16px 12px 12px 20px; }
+.sheet-title { overflow: hidden; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; white-space: nowrap; text-overflow: ellipsis; }
+.sheet-sub { margin-top: 2px; color: var(--text-3); font-size: 14px; }
+.sheet-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 20px 24px; }
+.sheet-body .tag-groups { margin-top: 8px; }
+.sheet-body .list-label:first-child { margin-top: 0; }
+.sheet-foot { display: flex; gap: 10px; padding: 12px 20px calc(var(--safe-bottom) + 16px); border-top: 1px solid var(--hairline); }
+.sheet-foot .button { flex: 1; }
+@media (min-width: 720px) { .sheet-foot { padding-bottom: 16px; } }
+
+.new-tag { display: flex; gap: 8px; width: 100%; margin-top: 4px; animation: rise 360ms var(--ease-out); }
+.new-tag input { flex: 1; min-width: 0; height: 36px; padding: 0 14px; border: 1px solid var(--accent); border-radius: var(--radius-pill); outline: 0; background: var(--accent-soft); font-size: 15px; }
+.new-tag .button { height: 36px; padding: 0 16px; font-size: 15px; }
+.notice { width: 100%; margin-top: 4px; color: var(--text-2); font-size: 15px; animation: rise 360ms var(--ease-out); }
+.notice-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.notice-actions .button { height: 36px; padding: 0 14px; font-size: 14px; }

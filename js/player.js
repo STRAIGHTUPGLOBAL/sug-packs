@@ -1,0 +1,79 @@
+// One audio element for the whole app, so only one loop ever plays, and
+// phones that need a tap before sound keep their permission across swipes.
+
+import { audioUrl } from "./store.js";
+
+const audio = new Audio();
+audio.preload = "auto";
+audio.loop = true;
+
+let currentId = null;
+const listeners = new Set();
+
+const emit = () => listeners.forEach((fn) => fn(state()));
+
+export function state() {
+  return {
+    id: currentId,
+    playing: !audio.paused,
+    time: audio.currentTime || 0,
+    duration: Number.isFinite(audio.duration) ? audio.duration : 0,
+  };
+}
+
+export function subscribe(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+// Progress ticks while playing, smoothly, without a timer per component.
+let frame = 0;
+function tick() {
+  emit();
+  frame = audio.paused ? 0 : requestAnimationFrame(tick);
+}
+for (const event of ["play", "pause", "loadedmetadata", "seeked", "emptied"]) {
+  audio.addEventListener(event, () => {
+    if (!frame && !audio.paused) frame = requestAnimationFrame(tick);
+    emit();
+  });
+}
+
+export async function play(loop, { from = 0 } = {}) {
+  if (currentId !== loop.id) {
+    currentId = loop.id;
+    audio.src = await audioUrl(loop);
+    if (from) audio.currentTime = from;
+  }
+  try {
+    await audio.play();
+    return true;
+  } catch {
+    emit();
+    return false; // the phone wants a tap first
+  }
+}
+
+export function toggle(loop) {
+  if (currentId === loop.id && !audio.paused) {
+    audio.pause();
+    return Promise.resolve(false);
+  }
+  return play(loop);
+}
+
+export function stop() {
+  audio.pause();
+  currentId = null;
+  emit();
+}
+
+export function seek(fraction) {
+  if (!Number.isFinite(audio.duration)) return;
+  audio.currentTime = Math.max(0, Math.min(0.999, fraction)) * audio.duration;
+}
+
+export const time = (seconds) => {
+  const s = Math.max(0, Math.floor(seconds || 0));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};

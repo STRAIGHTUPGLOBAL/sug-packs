@@ -1,0 +1,47 @@
+/* SUG Packs tokens. Near-black, white type, glass surfaces, and one colour:
+   the logo blue, used only for "selected" and the main action. */
+
+:root {
+  /* Ground */
+  --bg: #07070A;
+
+  /* Glass */
+  --surface: rgba(255, 255, 255, 0.045);
+  --surface-hover: rgba(255, 255, 255, 0.07);
+  --surface-strong: rgba(255, 255, 255, 0.1);
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-strong: rgba(255, 255, 255, 0.14);
+  --blur: blur(24px) saturate(1.4);
+
+  /* Type */
+  --text: #F5F5F7;
+  --text-2: rgba(245, 245, 247, 0.62);
+  --text-3: rgba(245, 245, 247, 0.38);
+
+  /* Colour, sparingly */
+  --accent: #4954E6;
+  --accent-hover: #5A64EE;
+  --accent-soft: rgba(73, 84, 230, 0.18);
+  --amber: #FFB224;
+  --green: #5BD17A;
+  --rose: #FF7A7A;
+
+  /* Type */
+  --font: "Geist", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+
+  /* Shape */
+  --radius-group: 20px;
+  --radius-card: 32px;
+  --radius-pill: 999px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.76, 0, 0.24, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* a small overshoot, for taps */
+
+  /* Layout */
+  --gutter: 20px;
+  --column: 640px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
