@@ -72,7 +72,7 @@ refresh that started mid-delete used to bring the pack back.
 |---|---|
 | `profiles` | one row per login: name, avatar (a small JPEG data URL), created_at |
 | `tags` | `id` is `"<group>:<slug>"`, e.g. `genre:rnb`; groups: type, genre, vibe, instrument, artist |
-| `loops` | file name, `dropbox_path`, title, bpm, key, collabs[], tags[], duration, added_by |
+| `loops` | file name, `dropbox_path`, title, bpm, key, collabs[], tags[], duration, added_by, `status` |
 | `packs` | name, loop_ids[], remove_sug, remove_collabs, dropbox_path, link, uses, last_used_at |
 | `pack_favorites` | (pack_id, user_id) |
 
@@ -97,6 +97,20 @@ off (it checks the caller itself against `profiles`).
 | `create_pack` | copies loops into `/Packs/<name>` under cleaned names, shares the folder, writes the pack row |
 | `rename_pack` | moves the Dropbox folder (the share link survives) and updates the row |
 | `delete_pack` | deletes the folder and the row; loops in `/Library` stay |
+
+## A loop's life: open, reserved, placed
+
+- **open** — normal, free to send in packs.
+- **reserved** — a producer called dibs before a release. Still sendable, but
+  flagged, so an exclusive offer starts a conversation first. `status_note`
+  holds who has it.
+- **placed** — sold exclusively. Setting this pulls the loop out of every pack
+  (its copy is deleted from each pack's Dropbox folder and the id removed from
+  `loop_ids`), and Build never offers it again. `status_note` holds where it landed.
+
+Status changes go through the server function (`set_loop_status`), because
+placing touches Dropbox and other packs. The confirmation is a second tap that
+says how many packs it will leave.
 
 ## Names and handles are never lost
 

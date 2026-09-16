@@ -11,7 +11,7 @@ export const {
   init, refresh, reset, setErrorHandler,
   users, currentUser, setUser, setName,
   listTags, tagsById, addTag, tagUseCount,
-  listLoops, getLoop, untagged, updateLoop, audioUrl, warm, addFiles, deleteLoop,
+  listLoops, getLoop, untagged, updateLoop, audioUrl, warm, addFiles, deleteLoop, setLoopStatus,
   listPacks, createPack, deletePack, renamePack,
   myId, profileOf, people, setAvatar, setPersonName,
   isFavorite, favoriteCount, favoritesOf, toggleFavorite, notePackUse,

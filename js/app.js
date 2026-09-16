@@ -172,7 +172,8 @@ function renderBuild() {
   const loops = store.listLoops();
   const tags = store.listTags();
   const byId = store.tagsById();
-  const tagged = loops.filter((l) => l.tags.length);
+  // Placed loops are sold: they never appear in a pack again.
+  const tagged = loops.filter((l) => l.tags.length && l.status !== "placed");
   const session = swipe.getSession();
   const resumable = session && !session.takeAll && session.index > 0 && session.index < session.deck.length;
 
@@ -226,7 +227,7 @@ function renderBuild() {
           <h2 class="group-label">${group.label}</h2>
           <div class="chips">${groupTags.map((t) => `<button class="chip" type="button" data-tag="${t.id}">${esc(t.label)}</button>`).join("")}</div>
         </section>`;
-    }).join("") || `<p class="empty">No tag called “${esc(tagQuery)}”.</p>`;
+    }).join("") || `<p class="empty">${tagQuery ? `No tag called “${esc(tagQuery)}”.` : "No tags yet. Tag a loop in the Library."}</p>`;
     paintState();
   }
 
@@ -355,11 +356,14 @@ function renderLibrary() {
           </button>
         </div>` : ""}
       ${shown.length ? `<ul class="list ${first ? "stagger" : ""}">${shown.map((loop, i) => `
-        <li class="row row--media row--tap" data-open="${loop.id}" style="--i:${i}">
+        <li class="row row--media row--tap ${loop.status === "placed" ? "is-placed" : ""}" data-open="${loop.id}" style="--i:${i}">
           <button class="thumb" type="button" data-play="${loop.id}" aria-label="Play" style="${coverStyle(loop.file)}">${icon("play")}</button>
           <div class="row-main">
             <div class="row-title">${esc(loop.title)}</div>
-            <div class="row-sub ${loop.tags.length ? "" : "row-sub--amber"}">${loop.tags.length ? esc(loopSub(loop, byId)) : `${loop.bpm ? `${loop.bpm} BPM · ` : ""}No tags`}</div>
+            <div class="row-sub ${loop.tags.length || loop.status !== "open" ? "" : "row-sub--amber"}">
+              ${loop.status === "placed" ? `<span class="state state--placed">${icon("disc")} Placed</span>` : loop.status === "reserved" ? `<span class="state state--reserved">${icon("reserved")} Reserved</span>` : ""}
+              ${loop.tags.length ? esc(loopSub(loop, byId)) : `${loop.bpm ? `${loop.bpm} BPM · ` : ""}No tags`}
+            </div>
           </div>
         </li>`).join("")}</ul>` : `<p class="empty">${q ? "Nothing found." : "No loops yet. Tap + to upload."}</p>`}`;
     first = false;
@@ -439,6 +443,20 @@ function openTagger(ids, index = 0, onDone = () => {}) {
     </div>
     <div class="sheet-body">
       <div class="tag-groups" data-t-groups></div>
+      <p class="list-label">Status</p>
+      <div class="list">
+        <div class="row row--actions">
+          <button class="chip status-chip" type="button" data-status="open">Open</button>
+          <button class="chip status-chip" type="button" data-status="reserved">${icon("reserved")} Reserved</button>
+          <button class="chip status-chip" type="button" data-status="placed">${icon("disc")} Placed</button>
+        </div>
+        <div class="row" data-note-row hidden>
+          <div class="row-main row-field">
+            <label for="status-note" data-note-label>Who has it</label>
+            <input id="status-note" data-note value="${esc(loop.statusNote ?? "")}" autocomplete="off">
+          </div>
+        </div>
+      </div>
       <p class="list-label">Details</p>
       <div class="list">
         <label class="row"><span class="row-label">Title</span><input class="row-input" data-f="title" value="${esc(loop.title)}" autocomplete="off"></label>
@@ -467,6 +485,21 @@ function openTagger(ids, index = 0, onDone = () => {}) {
     </div>`;
   const options = { onClose: () => { player.stop(); onDone(); } };
   const sheet = index > 0 ? replaceSheet(html, options) : openSheet(html, options);
+
+  function paintStatus() {
+    const current = store.getLoop(loop.id)?.status ?? loop.status ?? "open";
+    loop.status = current;
+    sheet.querySelectorAll("[data-status]").forEach((chip) => {
+      delete chip.dataset.sure;
+      const kind = chip.dataset.status;
+      chip.classList.toggle("is-on", kind === current);
+      chip.classList.toggle(`is-${kind}`, kind === current);
+      chip.innerHTML = kind === "open" ? "Open" : kind === "reserved" ? `${icon("reserved")} Reserved` : `${icon("disc")} Placed`;
+    });
+    const noteRow = sheet.querySelector("[data-note-row]");
+    noteRow.hidden = current === "open";
+    sheet.querySelector("[data-note-label]").textContent = current === "placed" ? "Where it landed" : "Who has it";
+  }
 
   function paintGroups() {
     const tags = store.listTags();
@@ -531,6 +564,32 @@ function openTagger(ids, index = 0, onDone = () => {}) {
     const use = event.target.closest("[data-t-use]");
     if (use) { draft.add(use.dataset.tUse); adding = null; notice = null; return paintGroups(); }
     if (event.target.closest("[data-t-force]")) return addTag(adding, notice.label, true);
+    const status = event.target.closest("[data-status]");
+    if (status) {
+      const next = status.dataset.status;
+      if (next === loop.status) return;
+      // Placing is the one that changes other things, so it asks twice.
+      if (next === "placed" && !status.dataset.sure) {
+        const packs = store.listPacks().filter((pack) => pack.loopIds.includes(loop.id)).length;
+        status.dataset.sure = "1";
+        status.textContent = packs ? `Tap again · leaves ${plural(packs, "pack")}` : "Tap again to place";
+        setTimeout(() => { if (status.dataset.sure) { delete status.dataset.sure; paintStatus(); } }, 4000);
+        return;
+      }
+      try {
+        const pulled = await store.setLoopStatus(loop.id, next, sheet.querySelector("[data-note]").value.trim() || null);
+        loop.status = next;
+        paintStatus();
+        toast(next === "placed"
+          ? `Placed${pulled ? ` · pulled from ${plural(pulled, "pack")}` : ""}`
+          : next === "reserved" ? "Reserved" : "Open again");
+        onDone();
+      } catch (error) {
+        paintStatus();
+        toast(error.message || "Couldn't change that");
+      }
+      return;
+    }
     if (event.target.closest("[data-del-open]")) {
       sheet.querySelector("[data-del-idle]").hidden = true;
       sheet.querySelector("[data-del-confirm]").hidden = false;
@@ -564,6 +623,17 @@ function openTagger(ids, index = 0, onDone = () => {}) {
     if (event.target.closest("[data-t-skip]")) return next();
     if (event.target.closest("[data-t-save]")) return save();
   });
+  sheet.addEventListener("change", async (event) => {
+    if (!event.target.matches("[data-note]")) return;
+    if ((store.getLoop(loop.id)?.status ?? "open") === "open") return;
+    try {
+      await store.setLoopStatus(loop.id, loop.status, event.target.value.trim() || null);
+      onDone();
+    } catch (error) {
+      toast(error.message || "Couldn't save that");
+    }
+  });
+
   sheet.addEventListener("input", (event) => {
     if (!event.target.matches("[data-del-input]")) return;
     const typed = event.target.value.trim().toLowerCase();
@@ -605,6 +675,7 @@ function openTagger(ids, index = 0, onDone = () => {}) {
   }
 
   paintGroups();
+  paintStatus();
   player.play(loop);
 }
 

@@ -98,6 +98,9 @@ const fromLoop = (row) => ({
   collabs: row.collabs ?? [],
   tags: row.tags ?? [],
   duration: row.duration ?? 0,
+  status: row.status ?? "open",
+  statusNote: row.status_note ?? "",
+  statusAt: row.status_at ? Date.parse(row.status_at) : 0,
   addedBy: nameOf(row.added_by),
   addedAt: Date.parse(row.added_at),
 });
@@ -200,6 +203,13 @@ export async function deleteLoop(loopId) {
   await server("delete_loop", { loopId });
   links.delete(loopId);
   await init();
+}
+
+// open · reserved · placed. Placing a loop pulls it out of every pack.
+export async function setLoopStatus(loopId, status, note = null) {
+  const { pulledFrom } = await server("set_loop_status", { loopId, status, note });
+  await init();
+  return pulledFrom;
 }
 
 // Playback links last four hours; ask for a batch ahead of the swipe deck.

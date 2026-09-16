@@ -500,6 +500,17 @@ button.thumb:active { transform: scale(0.92); transition-duration: 80ms; }
 }
 .avatar-edit .icon { width: 16px; height: 16px; }
 
+/* Reserved and placed */
+.status-chip .icon { width: 15px; height: 15px; }
+.status-chip.is-reserved { border-color: transparent; background: var(--amber); color: #07070A; }
+.status-chip.is-placed { border-color: transparent; background: rgba(255, 122, 122, 0.22); color: var(--rose); }
+.state { display: inline-flex; align-items: center; gap: 4px; margin-right: 6px; }
+.state .icon { width: 14px; height: 14px; }
+.state--reserved { color: var(--amber); }
+.state--placed { color: var(--rose); }
+.row.is-placed .row-title { color: var(--text-2); }
+.row.is-placed .thumb { opacity: 0.55; }
+
 /* Picking a profile picture */
 .picture { display: grid; justify-items: center; gap: 16px; padding: 8px 0 20px; }
 .picture-frame {

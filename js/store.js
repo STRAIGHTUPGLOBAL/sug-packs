@@ -41,6 +41,7 @@ async function seed() {
     file: demo.file,
     ...parseName(demo.file),
     tags: demo.tags,
+    status: "open",
     duration: peaks[demo.file]?.duration || 0,
     peaks: peaks[demo.file]?.peaks || [],
     src: DEMO_AUDIO + encodeURIComponent(demo.file),
@@ -154,6 +155,24 @@ async function analyse(file, count = 160) {
   }
   const top = Math.max(...peaks) || 1;
   return { duration: buffer.duration, peaks: peaks.map((p) => +(p / top).toFixed(2)) };
+}
+
+export async function setLoopStatus(loopId, status, note = null) {
+  const loop = getLoop(loopId);
+  if (!loop) return 0;
+  loop.status = status;
+  loop.statusNote = note ?? "";
+  loop.statusAt = status === "open" ? 0 : Date.now();
+  let pulledFrom = 0;
+  if (status === "placed") {
+    for (const pack of state.packs) {
+      if (!pack.loopIds.includes(loopId)) continue;
+      pack.loopIds = pack.loopIds.filter((id) => id !== loopId);
+      pulledFrom++;
+    }
+  }
+  save();
+  return pulledFrom;
 }
 
 export async function deleteLoop(loopId) {
