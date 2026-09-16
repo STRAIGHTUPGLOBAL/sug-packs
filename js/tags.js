@@ -2,18 +2,24 @@
 // group, and a new tag that looks like an existing one ("R&B" vs "RnB") is
 // caught before it is created.
 
+// Type comes first: melodic or hard is the one call that never fails, and it
+// is always the first thing chosen. Everything else is built up while tagging.
 export const GROUPS = [
+  { id: "type", label: "Type" },
   { id: "genre", label: "Genre" },
   { id: "vibe", label: "Vibe" },
   { id: "instrument", label: "Instruments" },
-  { id: "artist", label: "Sounds like" },
+  { id: "artist", label: "Artist (optional)" },
 ];
 
+// The only tags that ship with the app. The rest of the vocabulary is the
+// owners' own, added while they tag.
 export const STARTER_TAGS = {
-  genre: ["Trap", "Melodic Trap", "Drill", "UK", "RnB", "Pluggnb", "Rage", "New Wave", "Boom Bap", "Soul", "Afrobeat", "Dancehall", "Latin", "French", "Detroit", "Pop"],
-  vibe: ["Dark", "Pain", "Emotional", "Hard", "Smooth", "Chill", "Uplifting", "Sexy", "Vintage", "Epic", "Weird"],
-  instrument: ["Guitar", "Acoustic Guitar", "Piano", "Keys", "Synth", "Pad", "Arp", "Strings", "Vocals", "Flute", "Bells", "Brass"],
-  artist: ["Gunna", "Lil Baby", "Lil Durk", "Rod Wave", "NoCap", "Polo G", "Drake", "SZA", "Travis Scott", "Don Toliver", "Kanye West", "Nemzzz", "NLE Choppa", "Burna Boy", "Lil Tecca", "RAF Camora"],
+  type: ["Melodic", "Hard"],
+  genre: [],
+  vibe: [],
+  instrument: [],
+  artist: [],
 };
 
 export const slug = (label) => label.toLowerCase().replace(/&/g, "n").replace(/[^a-z0-9]+/g, "");

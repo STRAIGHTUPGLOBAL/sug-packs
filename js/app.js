@@ -469,7 +469,7 @@ function openTagger(ids, index = 0, onDone = () => {}) {
                   <button class="button button--primary" type="button" data-t-use="${notice.match.id}">Use ${esc(notice.match.label)}</button>
                   <button class="button" type="button" data-t-force>Add “${esc(notice.label)}”</button>
                 </div>
-              </div>` : ""}` : `<button class="chip chip--add" type="button" data-t-add="${group.id}" aria-label="New ${group.label} tag">${icon("plus")}</button>`}
+              </div>` : ""}` : `<button class="chip chip--add" type="button" data-t-add="${group.id}" aria-label="New ${group.label} tag">${icon("plus")}${tags.some((t) => t.group === group.id) ? "" : " New tag"}</button>`}
         </div>
       </section>`).join("");
     const input = sheet.querySelector("[data-t-input]");

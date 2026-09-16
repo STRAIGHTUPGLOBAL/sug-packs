@@ -71,7 +71,7 @@ refresh that started mid-delete used to bring the pack back.
 | Table | What |
 |---|---|
 | `profiles` | one row per login: name, avatar (a small JPEG data URL), created_at |
-| `tags` | `id` is `"<group>:<slug>"`, e.g. `genre:rnb`; groups: genre, vibe, instrument, artist |
+| `tags` | `id` is `"<group>:<slug>"`, e.g. `genre:rnb`; groups: type, genre, vibe, instrument, artist |
 | `loops` | file name, `dropbox_path`, title, bpm, key, collabs[], tags[], duration, added_by |
 | `packs` | name, loop_ids[], remove_sug, remove_collabs, dropbox_path, link, uses, last_used_at |
 | `pack_favorites` | (pack_id, user_id) |
@@ -116,6 +116,11 @@ Nothing about who worked on a loop is ever thrown away.
   its cover. That is intended: identity follows the name.
 - **Tag ids encode the group**, so the same word can exist in two groups but
   never twice in one.
+- **The vocabulary is the owners', not ours.** Only `type` ships with tags
+  (Melodic, Hard) — the first call they make on every loop, and the one that
+  never fails. Genre, Vibe, Instruments and Artist (optional) start empty and
+  fill up while tagging; empty groups show "+ New tag". Don't seed tags again
+  (update 3 removed the starter vocabulary, keeping anything already in use).
 - **The swipe session lives in localStorage** (`sugpacks-session`), so closing
   the phone mid-swipe keeps your place.
 - **Phones need one tap before audio plays**; after that each card plays itself.
