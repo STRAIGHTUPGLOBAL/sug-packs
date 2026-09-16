@@ -300,7 +300,7 @@ function renderBuild() {
 function renderLibrary() {
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("library", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="256"><h1 class="header-title">Library</h1></div>')}
+      ${header("library", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="229"><h1 class="header-title">Library</h1></div>')}
       <div class="search-row">
         <label class="search">${icon("search")}<input type="search" data-lib-query placeholder="Search" value="${esc(libraryQuery)}" autocomplete="off"></label>
         <label class="icon-button icon-button--glass" aria-label="Upload" title="Upload">${icon("plus")}<input type="file" accept="audio/*,.mp3,.wav" multiple hidden data-upload></label>
@@ -579,7 +579,7 @@ function matchesQuery(pack, q) {
 function renderPacks() {
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("packs", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="256"><h1 class="header-title">Packs</h1></div>')}
+      ${header("packs", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="229"><h1 class="header-title">Packs</h1></div>')}
       <div class="search-row">
         <label class="search">${icon("search")}<input type="search" data-pack-query placeholder="Search packs and loops" value="${esc(packQuery)}" autocomplete="off"></label>
       </div>

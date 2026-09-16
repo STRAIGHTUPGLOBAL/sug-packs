@@ -288,17 +288,17 @@ export async function createPack({ name, loopIds, removeSug, removeCollabs }, on
   }
 }
 
+// Rare, and worth being exact about: read everything back afterwards, so a
+// refresh that started mid-delete can't bring the pack back.
 export async function deletePack(packId) {
   await server("delete_pack", { packId });
-  packs = packs.filter((p) => p.id !== packId);
-  favorites.delete(packId);
+  await init();
 }
 
 export async function renamePack(packId, name) {
   const { pack } = await server("rename_pack", { packId, name });
-  const fresh = fromPack(pack);
-  packs = packs.map((p) => (p.id === packId ? fresh : p));
-  return fresh;
+  await init();
+  return packs.find((p) => p.id === packId) ?? fromPack(pack);
 }
 
 /* People, favourites and usage ------------------------------------------------- */

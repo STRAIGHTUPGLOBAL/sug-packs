@@ -421,8 +421,11 @@ export function renderPack(view, go) {
     let pack;
     try {
       pack = await store.createPack({ name, loopIds: session.kept, removeSug: session.removeSug, removeCollabs: session.removeCollabs }, (done) => {
-        view.querySelector("[data-status]").textContent = `Copying ${done} of ${total}`;
-        view.querySelector("[data-bar]").style.width = `${(done / total) * 100}%`;
+        // The screen may already be gone (someone navigated away): just skip it.
+        const status = view.querySelector("[data-status]");
+        if (status) status.textContent = `Copying ${done} of ${total}`;
+        const bar = view.querySelector("[data-bar]");
+        if (bar) bar.style.width = `${(done / total) * 100}%`;
       });
     } catch (error) {
       // Nothing is lost: the pack is still open, so they can simply try again.
