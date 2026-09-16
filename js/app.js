@@ -597,9 +597,24 @@ function openAccount() {
       </div>
       <div class="sheet-body">
         <div class="list">
+          <div class="row"><div class="row-main row-field"><label for="account-name">Name on loops and packs</label><input id="account-name" data-name value="${esc(store.currentUser())}" autocomplete="off"></div></div>
+        </div>
+        <div class="list">
           <button class="row" type="button" data-signout><span class="row-main row-danger">Sign out</span></button>
         </div>
       </div>`);
+    const nameInput = sheet.querySelector("[data-name]");
+    nameInput.addEventListener("change", async () => {
+      const value = nameInput.value.trim();
+      if (!value || value === store.currentUser()) return;
+      try {
+        await store.setName(value);
+        toast("Name saved");
+        if (currentPage() === "packs") route();
+      } catch (error) {
+        toast(error.message || "Couldn't save the name");
+      }
+    });
     sheet.querySelector("[data-signout]").addEventListener("click", async () => {
       await store.signOut();
       signedIn = false;

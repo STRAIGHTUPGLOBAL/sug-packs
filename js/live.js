@@ -139,6 +139,16 @@ export const users = () => [...profiles.values()].map((p) => p.name);
 export const currentUser = () => me?.name ?? "";
 export function setUser() { /* demo only: live logins are real */ }
 
+// The name that shows on loops and packs. Everyone sets their own.
+export async function setName(name) {
+  const clean = String(name).trim().replace(/\s+/g, " ").slice(0, 40);
+  if (!clean || !me) return;
+  check(await sb.from("profiles").update({ name: clean }).eq("id", me.id).select().single());
+  me.name = clean;
+  profiles.set(me.id, { ...(profiles.get(me.id) ?? { id: me.id }), name: clean });
+  await init();
+}
+
 /* Tags ---------------------------------------------------------------------------- */
 
 export const listTags = () => tags;
@@ -217,14 +227,14 @@ export async function addFiles(files, onProgress = () => {}) {
       continue;
     }
     try {
-      const { url } = await server("upload_link", { name: file.name });
+      // The link comes with the path it will land on; the upload only confirms.
+      const { url, path, name } = await server("upload_link", { name: file.name });
       const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
       if (!res.ok) throw new Error(`Dropbox refused ${file.name}`);
-      const meta = await res.json();
-      const parsed = parseName(file.name);
+      const parsed = parseName(name);
       const row = check(await sb.from("loops").insert({
-        file: file.name,
-        dropbox_path: meta.path_display,
+        file: name,
+        dropbox_path: path,
         title: parsed.title,
         bpm: parsed.bpm,
         key: parsed.key,

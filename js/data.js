@@ -9,7 +9,7 @@ export const {
   live,
   session, signIn, signOut,
   init, refresh, reset, setErrorHandler,
-  users, currentUser, setUser,
+  users, currentUser, setUser, setName,
   listTags, tagsById, addTag, tagUseCount,
   listLoops, getLoop, untagged, updateLoop, audioUrl, warm, addFiles,
   listPacks, createPack, deletePack,

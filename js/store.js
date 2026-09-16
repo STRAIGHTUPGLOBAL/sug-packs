@@ -224,3 +224,4 @@ export async function signOut() { /* demo has no login */ }
 export async function refresh() { return false; }
 export async function warm() { /* demo audio is local */ }
 export function setErrorHandler() { /* demo never fails a save */ }
+export async function setName(name) { state.user = String(name).trim() || state.user; save(); }
