@@ -321,7 +321,7 @@ function renderBuild() {
 function renderLibrary() {
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("library", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="229"><h1 class="header-title">Library</h1></div>')}
+      ${header("library", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="227"><h1 class="header-title">Library</h1></div>')}
       <div data-progress></div>
       <div data-results></div>
     </section>`;
@@ -608,7 +608,7 @@ function matchesQuery(pack, q) {
 function renderPacks() {
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("packs", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="229"><h1 class="header-title">Packs</h1></div>')}
+      ${header("packs", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="227"><h1 class="header-title">Packs</h1></div>')}
       <div data-list></div>
       <p class="list-label">People</p>
       <div class="list" data-people></div>
