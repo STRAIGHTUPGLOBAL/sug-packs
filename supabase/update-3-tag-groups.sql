@@ -12,6 +12,11 @@ alter table public.tags drop constraint if exists tags_grp_check;
 alter table public.tags add constraint tags_grp_check
   check (grp in ('type', 'genre', 'vibe', 'instrument', 'artist'));
 
+-- Type is closed: melodic or hard, nothing else can ever be added.
+alter table public.tags drop constraint if exists tags_type_is_closed;
+alter table public.tags add constraint tags_type_is_closed
+  check (grp <> 'type' or id in ('type:melodic', 'type:hard'));
+
 -- The two types that never fail.
 insert into public.tags (id, grp, label, created_by) values
   ('type:melodic', 'type', 'Melodic', null),

@@ -5,7 +5,7 @@
 // Type comes first: melodic or hard is the one call that never fails, and it
 // is always the first thing chosen. Everything else is built up while tagging.
 export const GROUPS = [
-  { id: "type", label: "Type" },
+  { id: "type", label: "Type", fixed: true }, // melodic or hard, nothing else, ever
   { id: "genre", label: "Genre" },
   { id: "vibe", label: "Vibe" },
   { id: "instrument", label: "Instruments" },
