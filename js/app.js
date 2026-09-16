@@ -59,31 +59,42 @@ async function route() {
   navFrom = fromTab ? TAB_IDS.indexOf(asTab(lastPage)) : Math.max(0, TAB_IDS.indexOf(asTab(page)));
   lastPage = page;
 
+  if (["swipe", "pack"].includes(page)) hideDock();
   if (page === "swipe") cleanup = swipe.renderSwipe(view, go);
   else if (page === "pack") cleanup = swipe.renderPack(view, go);
   else if (page === "library") cleanup = renderLibrary();
   else if (page === "packs") cleanup = renderPacks();
   else if (page === "u") cleanup = renderProfile(decodeURIComponent(location.hash.split("/")[2] ?? ""));
   else cleanup = renderBuild();
-  settleNav();
 }
 
 const pageClass = () => `page enter ${keepHeader ? "keep-header" : ""}`;
 
+const dock = document.querySelector("[data-dock]");
+
 function header(active, left) {
-  return `
-    <header class="header">
-      ${left}
-      <nav class="nav" aria-label="Main" style="--at:${navFrom}" data-nav-to="${TAB_IDS.indexOf(active)}">
-        <span class="nav-indicator"></span>
-        ${TABS.map((t) => `<a class="nav-item ${t.id === active ? "is-active" : ""}" href="#/${t.id}" aria-label="${t.label}" title="${t.label}" ${t.id === active ? 'aria-current="page"' : ""}>${icon(t.icon)}</a>`).join("")}
-      </nav>
-    </header>`;
+  return `<header class="header">${left}</header>`;
 }
+
+// Everything you reach for while holding the phone sits at the bottom: the
+// page's own controls, and the navigation under them.
+function setDock(active, controls = "") {
+  dock.hidden = false;
+  dock.innerHTML = `
+    ${controls ? `<div class="dock-controls">${controls}</div>` : ""}
+    <nav class="nav" aria-label="Main" style="--at:${navFrom}" data-nav-to="${TAB_IDS.indexOf(active)}">
+      <span class="nav-indicator"></span>
+      ${TABS.map((t) => `<a class="nav-item ${t.id === active ? "is-active" : ""}" href="#/${t.id}" aria-label="${t.label}" title="${t.label}" ${t.id === active ? 'aria-current="page"' : ""}>${icon(t.icon)}<span class="nav-label">${t.label}</span></a>`).join("")}
+    </nav>`;
+  settleNav();
+  requestAnimationFrame(() => document.documentElement.style.setProperty("--dock-h", `${dock.offsetHeight}px`));
+}
+
+const hideDock = () => { dock.hidden = true; dock.innerHTML = ""; };
 
 // Slide the nav highlight from the last tab to this one.
 function settleNav() {
-  const nav = view.querySelector("[data-nav-to]");
+  const nav = dock.querySelector("[data-nav-to]");
   if (!nav) return;
   requestAnimationFrame(() => requestAnimationFrame(() => nav.style.setProperty("--at", nav.dataset.navTo)));
 }
@@ -108,6 +119,7 @@ function syncThumbs(root, s) {
 function renderSignIn() {
   cleanup?.();
   cleanup = null;
+  hideDock();
   lastPage = null;
   view.classList.remove("is-leaving", "is-leaving-all");
   view.innerHTML = `
@@ -174,10 +186,6 @@ function renderBuild() {
           </a>
         </div>` : ""}
       ${tagged.length ? `
-        <div class="search-row">
-          <label class="search">${icon("search")}<input type="search" data-query placeholder="Search tags" value="${esc(tagQuery)}" autocomplete="off"></label>
-          <button class="text-button" type="button" data-clear style="opacity:0; pointer-events:none">Clear</button>
-        </div>
         <div class="tag-groups" data-groups></div>` : `
         <div class="empty">
           <p>No tagged loops yet.</p>
@@ -185,11 +193,20 @@ function renderBuild() {
         </div>`}
     </section>`;
 
-  if (!tagged.length) return null;
+  if (!tagged.length) {
+    setDock("build");
+    return null;
+  }
+
+  setDock("build", `
+    <div class="search-row">
+      <label class="search">${icon("search")}<input type="search" data-query placeholder="Search tags" value="${esc(tagQuery)}" autocomplete="off"></label>
+      <button class="text-button" type="button" data-clear style="opacity:0; pointer-events:none">Clear</button>
+    </div>`);
 
   const page = view.querySelector(".page");
   const groupsEl = view.querySelector("[data-groups]");
-  const clearButton = view.querySelector("[data-clear]");
+  const clearButton = dock.querySelector("[data-clear]");
   const current = () => tagged.filter((l) => matches(l, selected, byId));
   let bar = null;
   let lastCount = null;
@@ -288,10 +305,14 @@ function renderBuild() {
   };
   view.addEventListener("click", onClick);
   view.addEventListener("input", onInput);
+  dock.addEventListener("click", onClick);
+  dock.addEventListener("input", onInput);
   renderGroups();
   return () => {
     view.removeEventListener("click", onClick);
     view.removeEventListener("input", onInput);
+    dock.removeEventListener("click", onClick);
+    dock.removeEventListener("input", onInput);
   };
 }
 
@@ -301,13 +322,15 @@ function renderLibrary() {
   view.innerHTML = `
     <section class="${pageClass()}">
       ${header("library", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="229"><h1 class="header-title">Library</h1></div>')}
-      <div class="search-row">
-        <label class="search">${icon("search")}<input type="search" data-lib-query placeholder="Search" value="${esc(libraryQuery)}" autocomplete="off"></label>
-        <label class="icon-button icon-button--glass" aria-label="Upload" title="Upload">${icon("plus")}<input type="file" accept="audio/*,.mp3,.wav" multiple hidden data-upload></label>
-      </div>
       <div data-progress></div>
       <div data-results></div>
     </section>`;
+
+  setDock("library", `
+    <div class="search-row">
+      <label class="search">${icon("search")}<input type="search" data-lib-query placeholder="Search" value="${esc(libraryQuery)}" autocomplete="off"></label>
+      <label class="icon-button icon-button--glass" aria-label="Upload" title="Upload">${icon("plus")}<input type="file" accept="audio/*,.mp3,.wav" multiple hidden data-upload></label>
+    </div>`);
 
   const results = view.querySelector("[data-results]");
   let first = true;
@@ -375,12 +398,18 @@ function renderLibrary() {
   view.addEventListener("click", onClick);
   view.addEventListener("input", onInput);
   view.addEventListener("change", onChange);
+  dock.addEventListener("click", onClick);
+  dock.addEventListener("input", onInput);
+  dock.addEventListener("change", onChange);
   const unsubscribe = player.subscribe((s) => syncThumbs(results, s));
   paint();
   return () => {
     view.removeEventListener("click", onClick);
     view.removeEventListener("input", onInput);
     view.removeEventListener("change", onChange);
+    dock.removeEventListener("click", onClick);
+    dock.removeEventListener("input", onInput);
+    dock.removeEventListener("change", onChange);
     unsubscribe();
   };
 }
@@ -580,19 +609,21 @@ function renderPacks() {
   view.innerHTML = `
     <section class="${pageClass()}">
       ${header("packs", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="229"><h1 class="header-title">Packs</h1></div>')}
-      <div class="search-row">
-        <label class="search">${icon("search")}<input type="search" data-pack-query placeholder="Search packs and loops" value="${esc(packQuery)}" autocomplete="off"></label>
-      </div>
-      <div class="filters">
-        <button class="chip" type="button" data-filter="all">All</button>
-        <button class="chip" type="button" data-filter="mine">Mine</button>
-        <button class="chip" type="button" data-filter="fav">${icon("star")} Favourites</button>
-        <button class="chip chip--sort" type="button" data-sort>${icon("sort")} <span data-sort-label></span></button>
-      </div>
       <div data-list></div>
       <p class="list-label">People</p>
       <div class="list" data-people></div>
     </section>`;
+
+  setDock("packs", `
+    <div class="search-row">
+      <label class="search">${icon("search")}<input type="search" data-pack-query placeholder="Search packs and loops" value="${esc(packQuery)}" autocomplete="off"></label>
+    </div>
+    <div class="filters">
+      <button class="chip" type="button" data-filter="all">All</button>
+      <button class="chip" type="button" data-filter="mine">Mine</button>
+      <button class="chip" type="button" data-filter="fav">${icon("star")} Favourites</button>
+      <button class="chip chip--sort" type="button" data-sort>${icon("sort")} <span data-sort-label></span></button>
+    </div>`);
 
   const listEl = view.querySelector("[data-list]");
   let first = true;
@@ -605,8 +636,8 @@ function renderPacks() {
     const shown = sortPacks(all.filter((pack) => matchesQuery(pack, q)
       && (packFilter === "all" || (packFilter === "mine" ? pack.by === mine : store.isFavorite(pack.id)))));
 
-    view.querySelectorAll("[data-filter]").forEach((chip) => chip.classList.toggle("is-on", chip.dataset.filter === packFilter));
-    view.querySelector("[data-sort-label]").textContent = SORTS[packSort];
+    dock.querySelectorAll("[data-filter]").forEach((chip) => chip.classList.toggle("is-on", chip.dataset.filter === packFilter));
+    dock.querySelector("[data-sort-label]").textContent = SORTS[packSort];
 
     listEl.innerHTML = shown.length
       ? `<ul class="list ${first ? "stagger" : ""}">${shown.map(packRow).join("")}</ul>`
@@ -653,10 +684,14 @@ function renderPacks() {
   };
   view.addEventListener("click", onClick);
   view.addEventListener("input", onInput);
+  dock.addEventListener("click", onClick);
+  dock.addEventListener("input", onInput);
   paint();
   return () => {
     view.removeEventListener("click", onClick);
     view.removeEventListener("input", onInput);
+    dock.removeEventListener("click", onClick);
+    dock.removeEventListener("input", onInput);
   };
 }
 
@@ -803,6 +838,7 @@ function renderProfile(id) {
         </div>` : ""}
     </section>`;
 
+  setDock("packs");
   const refresh = () => renderProfile(id);
 
   const onClick = async (event) => {

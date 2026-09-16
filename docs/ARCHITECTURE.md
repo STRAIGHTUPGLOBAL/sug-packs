@@ -98,6 +98,15 @@ off (it checks the caller itself against `profiles`).
 | `rename_pack` | moves the Dropbox folder (the share link survives) and updates the row |
 | `delete_pack` | deletes the folder and the row; loops in `/Library` stay |
 
+## Names and handles are never lost
+
+`loops.file` keeps the name exactly as uploaded, and the handles are parsed into
+`loops.collabs` as well. A pack is a list of loop ids plus two toggles; the
+cleaned names exist only on the copies inside that pack's Dropbox folder. So a
+later pack built from the same loops starts from the original names again and
+makes its own choice about stripping `@straightupglobal` or collab handles.
+Nothing about who worked on a loop is ever thrown away.
+
 ## Things that will bite you
 
 - **Dropbox's temporary upload link replies with a checksum, not metadata.**

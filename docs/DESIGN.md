@@ -15,6 +15,18 @@ element, the element goes.
 - Glass = translucent white surfaces with hairline borders. Grouped lists are
   built like iOS Settings: a rounded container, rows inside, inset separators.
 
+## Reach: the dock
+
+The app is used one-handed, walking around. Everything you reach for often sits
+at the **bottom**: each page's controls (search, upload, filters, sort) in a
+glass dock, with the navigation under them, centred and big enough for a thumb.
+The top holds identity only: the logotype on Build, the mark and title elsewhere.
+
+The dock is one fixed element outside the page (`[data-dock]`); pages fill it via
+`setDock(active, controls)`. Its height is measured into `--dock-h` so the page
+and the floating bar keep clear of it. The swipe deck and the pack page hide it:
+they are full-screen tasks with their own single action.
+
 ## Colour means something
 
 | Colour | Meaning |

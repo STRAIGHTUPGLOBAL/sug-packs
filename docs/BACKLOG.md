@@ -36,6 +36,22 @@ Keep entries short: goal, why, and how you will know it works.
   Note: the server already has `delete_file`; this is UI plus a guard when the
   loop sits in an existing pack (warn, don't silently break the pack).
 
+- [ ] **Listen through a pack**
+  Goal: open a pack and play it end to end, or shuffled, without leaving the app.
+  Why: before sending a pack on, or when hunting for one loop inside it.
+  Done when: play/shuffle from the pack sheet, next/previous, the current loop
+  visible, and it keeps playing while you scroll the list.
+
+- [ ] **Build a new pack out of other packs** (cross-creating)
+  Goal: while listening through a pack, pick the loops that fit, name a new pack
+  and create it, taking loops from several existing packs.
+  Why, in Razz's words: someone needs a few loops from a pack that also holds
+  loops that don't fit, so today they copy loops out by hand.
+  Done when: a "keep" action while listening, a basket that survives moving
+  between packs, then the normal name / clean-names / create screen.
+  Note: packs point at library loops, so the original file names and handles are
+  always available again; the new pack decides its own cleaning.
+
 ## Soon
 
 - [ ] **Edit a pack's contents** — add or remove loops after it was created
