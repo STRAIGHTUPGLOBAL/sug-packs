@@ -110,7 +110,7 @@ function renderSignIn() {
   view.classList.remove("is-leaving", "is-leaving-all");
   view.innerHTML = `
     <section class="page enter signin">
-      <img class="signin-logo" src="assets/sug-packs-logotype.png" alt="SUG Packs" width="1200" height="213">
+      <img class="signin-logo" src="assets/sug-packs-logotype.png" alt="SUG Packs" width="1200" height="199">
       <form class="signin-form" data-signin novalidate>
         <div class="list">
           <div class="row"><div class="row-main row-field"><label for="signin-email">Email</label><input id="signin-email" name="email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false"></div></div>
@@ -162,7 +162,7 @@ function renderBuild() {
 
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("build", '<img class="header-logo" src="assets/sug-packs-logotype.png" alt="SUG Packs" width="1200" height="213">')}
+      ${header("build", '<img class="header-logo" src="assets/sug-packs-logotype.png" alt="SUG Packs" width="1200" height="199">')}
       ${resumable ? `
         <div class="list list--spaced">
           <a class="row row--media" href="#/swipe">
