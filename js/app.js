@@ -176,7 +176,7 @@ function renderBuild() {
   const tags = store.listTags();
   const byId = store.tagsById();
   // Placed loops are sold: they never appear in a pack again.
-  const tagged = loops.filter((l) => l.tags.length && l.status !== "placed");
+  const tagged = loops.filter((l) => l.tags.length && l.status !== "placed" && !l.missing);
   const session = swipe.getSession();
   const resumable = session && !session.takeAll && session.index > 0 && session.index < session.deck.length;
 
@@ -351,11 +351,20 @@ function renderLibrary() {
     if (currentPage() !== "library") return; // a sheet closing after you've moved on
     const byId = store.tagsById();
     const all = store.listLoops();
-    const untagged = all.filter((l) => !l.tags.length);
+    const missing = all.filter((l) => l.missing);
+    const untagged = all.filter((l) => !l.missing && !l.tags.length);
     const q = libraryQuery.trim().toLowerCase();
     const shown = all.filter((l) => !q || l.file.toLowerCase().includes(q) || l.tags.some((id) => byId.get(id)?.label.toLowerCase().includes(q)));
 
     results.innerHTML = `
+      ${missing.length && !q ? `
+        <div class="list list--spaced">
+          <div class="row">
+            <span class="state state--missing">${icon("x")}</span>
+            <span class="row-main">${plural(missing.length, "file")} missing</span>
+            <button class="button button--small button--danger" type="button" data-remove-missing-all>Remove</button>
+          </div>
+        </div>` : ""}
       ${untagged.length && !q ? `
         <div class="list list--spaced">
           <button class="row" type="button" data-queue>
@@ -365,37 +374,63 @@ function renderLibrary() {
           </button>
         </div>` : ""}
       ${shown.length ? `<ul class="list ${first ? "stagger" : ""}">${shown.map((loop, i) => `
-        <li class="row row--media row--tap ${loop.status === "placed" ? "is-placed" : ""}" data-open="${loop.id}" style="--i:${i}">
-          <button class="thumb" type="button" data-play="${loop.id}" aria-label="Play" style="${coverStyle(loop.file)}">${icon("play")}</button>
+        <li class="row row--media row--tap ${loop.missing ? "is-missing" : loop.status === "placed" ? "is-placed" : ""}" data-open="${loop.id}" style="--i:${i}">
+          <button class="thumb" type="button" data-play="${loop.id}" aria-label="${loop.missing ? "File missing" : "Play"}" style="${coverStyle(loop.file)}" ${loop.missing ? "disabled" : ""}>${icon("play")}</button>
           <div class="row-main">
             <div class="row-title">${esc(loop.title)}</div>
             <div class="row-sub ${loop.tags.length || loop.status !== "open" ? "" : "row-sub--amber"}">
-              ${loop.status === "placed" ? `<span class="state state--placed">${icon("disc")} Placed</span>` : loop.status === "reserved" ? `<span class="state state--reserved">${icon("reserved")} Reserved</span>` : ""}
-              ${loop.tags.length ? esc(loopSub(loop, byId)) : `${loop.bpm ? `${loop.bpm} BPM · ` : ""}No tags`}
+              ${loop.missing ? `<span class="state state--missing">${icon("x")} Missing from Dropbox</span>` : loop.status === "placed" ? `<span class="state state--placed">${icon("disc")} Placed</span>` : loop.status === "reserved" ? `<span class="state state--reserved">${icon("reserved")} Reserved</span>` : ""}
+              ${loop.missing ? "" : loop.tags.length ? esc(loopSub(loop, byId)) : `${loop.bpm ? `${loop.bpm} BPM · ` : ""}No tags`}
             </div>
           </div>
+          ${loop.missing ? `<button class="icon-button" type="button" data-remove-missing="${loop.id}" aria-label="Remove ${esc(loop.title)}">${icon("trash")}</button>` : ""}
         </li>`).join("")}</ul>` : `<p class="empty">${q ? "Nothing found." : "No loops yet. Tap + to upload."}</p>`}`;
     first = false;
     syncThumbs(results, player.state());
-    const ahead = shown.slice(0, 8).map((loop) => loop.id);
+    const ahead = shown.filter((loop) => !loop.missing).slice(0, 8).map((loop) => loop.id);
     store.cacheAudio(ahead).catch(() => {});
     audioObserver?.disconnect();
     if ("IntersectionObserver" in window) {
       audioObserver = new IntersectionObserver((entries) => {
-        const visible = entries.filter((entry) => entry.isIntersecting).map((entry) => entry.target.dataset.open);
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .map((entry) => entry.target.dataset.open)
+          .filter((id) => !store.getLoop(id)?.missing);
         if (visible.length) store.cacheAudio(visible).catch(() => {});
       }, { rootMargin: "280px 0px" });
       results.querySelectorAll("[data-open]").forEach((row) => audioObserver.observe(row));
     }
   }
 
-  const onClick = (event) => {
+  const onClick = async (event) => {
     if (event.target.closest("[data-upload-queue]")) { uploads.openQueue(); return; }
+    const removeAll = event.target.closest("[data-remove-missing-all]");
+    const removeOne = event.target.closest("[data-remove-missing]");
+    if (removeAll || removeOne) {
+      const ids = removeOne ? [removeOne.dataset.removeMissing] : store.listLoops().filter((loop) => loop.missing).map((loop) => loop.id);
+      const button = removeAll || removeOne;
+      button.disabled = true;
+      if (removeAll) button.textContent = "Removing…";
+      try {
+        const removed = await store.removeMissingLoops(ids);
+        toast(`${plural(removed, "entry")} removed`);
+        paint();
+      } catch (error) {
+        button.disabled = false;
+        if (removeAll) button.textContent = "Remove";
+        paint();
+        toast(error.message || "Couldn't remove that");
+      }
+      return;
+    }
     const play = event.target.closest("[data-play]");
     if (play) { player.toggle(store.getLoop(play.dataset.play)); return; }
     if (event.target.closest("[data-queue]")) { openTagger(store.untagged().map((l) => l.id), 0, paint); return; }
     const row = event.target.closest("[data-open]");
-    if (row) openTagger([row.dataset.open], 0, paint);
+    if (row) {
+      if (store.getLoop(row.dataset.open)?.missing) return toast("That file is missing from Dropbox");
+      openTagger([row.dataset.open], 0, paint);
+    }
   };
   const onInput = (event) => {
     if (!event.target.matches("[data-lib-query]")) return;
@@ -423,6 +458,9 @@ function renderLibrary() {
   });
   paintUploads();
   paint();
+  store.checkLibraryFiles().then((changed) => {
+    if (changed && currentPage() === "library") paint();
+  }).catch(() => {});
   return () => {
     view.removeEventListener("click", onClick);
     view.removeEventListener("input", onInput);

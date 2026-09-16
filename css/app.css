@@ -519,8 +519,11 @@ button.thumb:active { transform: scale(0.92); transition-duration: 80ms; }
 .state .icon { width: 14px; height: 14px; }
 .state--reserved { color: var(--amber); }
 .state--placed { color: var(--rose); }
+.state--missing { color: var(--rose); }
 .row.is-placed .row-title { color: var(--text-2); }
 .row.is-placed .thumb { opacity: 0.55; }
+.row.is-missing .row-title { color: var(--text-2); }
+.row.is-missing .thumb { opacity: 0.42; }
 
 /* Upload queue: one calm summary in the Library, details in a sheet. */
 .upload-summary { margin-top: 20px; }

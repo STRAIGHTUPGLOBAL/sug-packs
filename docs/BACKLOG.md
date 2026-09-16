@@ -35,11 +35,6 @@ Keep entries short: goal, why, and how you will know it works.
   Note: packs point at library loops, so the original file names and handles are
   always available again; the new pack decides its own cleaning.
 
-- [ ] **Notice when a loop's file is missing**
-  Goal: a loop whose Dropbox file was deleted outside the app shows as missing
-  instead of failing silently when played, with a one-tap "remove this entry".
-  Why: deleting straight in Dropbox leaves the entry behind (happened 16 Sep).
-
 ## Soon
 
 - [ ] **Tag several loops at once** — select many Library loops, then add or
@@ -74,6 +69,8 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Done
 
+- [x] Missing Dropbox files: Library notices stale rows, keeps them out of Build,
+      and can remove one entry or the whole missing batch.
 - [x] Fast, correct playback: switching loops cancels the old request, and a
       bounded background cache keeps recent / next audio on the device.
 - [x] Bulk upload: three files move at once in a background queue, with per-file

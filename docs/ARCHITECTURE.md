@@ -57,7 +57,8 @@ the same names, so the screens never know whether they are live or in the demo:
 `live`, `session`, `signIn`, `signOut`, `init`, `refresh`, `reset`,
 `setErrorHandler`, `users`, `currentUser`, `setUser`, `setName`, `listTags`,
 `tagsById`, `addTag`, `tagUseCount`, `listLoops`, `getLoop`, `untagged`,
-`updateLoop`, `audioUrl`, `warm`, `cacheAudio`, `addFiles`, `listPacks`, `createPack`,
+`checkLibraryFiles`, `removeMissingLoops`, `updateLoop`, `audioUrl`, `warm`,
+`cacheAudio`, `addFiles`, `listPacks`, `createPack`,
 `deletePack`, `renamePack`, `myId`, `profileOf`, `people`, `setAvatar`,
 `isFavorite`, `favoriteCount`, `favoritesOf`, `toggleFavorite`, `notePackUse`.
 
@@ -152,5 +153,8 @@ Nothing about who worked on a loop is ever thrown away.
 - **Playback is cached ahead, but deliberately bounded.** New uploads go straight
   into the browser cache from their local `File`; Library and Swipe cache up to
   eight likely next loops. Twelve files / 192 MB is the device-wide ceiling.
+- **Dropbox can be edited behind the app's back.** Opening Library compares its
+  paths with `/Library`; missing rows are excluded from Build and can be removed
+  together. The deployed `delete_loop` action already tolerates a missing file.
 - **Avatars are data URLs in the database**, capped by a check constraint. No
   file storage is used anywhere.

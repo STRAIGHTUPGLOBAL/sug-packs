@@ -191,6 +191,48 @@ export const listLoops = () => loops;
 export const getLoop = (id) => loops.find((l) => l.id === id);
 export const untagged = () => loops.filter((l) => !l.tags.length);
 
+// Dropbox can be edited outside the app. Reconcile its real files with the
+// database rows without blocking start-up; the Library decides when to ask.
+export async function checkLibraryFiles() {
+  const { files = [] } = await server("library_files");
+  const present = new Set(files.map((file) => String(file.path).toLowerCase()));
+  let changed = false;
+  for (const loop of loops) {
+    const missing = !loop.path || !present.has(loop.path.toLowerCase());
+    if (Boolean(loop.missing) !== missing) changed = true;
+    loop.missing = missing;
+  }
+  return changed;
+}
+
+// Files already confirmed missing need only lose their Supabase rows. Reuse the
+// deployed delete action (which tolerates Dropbox 404s) and refresh once at end.
+export async function removeMissingLoops(ids) {
+  const knownMissing = new Set(loops.filter((loop) => loop.missing).map((loop) => loop.id));
+  const pending = [...new Set(ids)].filter((id) => getLoop(id)?.missing);
+  const failures = [];
+  let next = 0;
+  async function worker() {
+    while (next < pending.length) {
+      const id = pending[next++];
+      try {
+        await server("delete_loop", { loopId: id });
+        links.delete(id);
+        await removeAudio(id).catch(() => {});
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(3, pending.length) }, worker));
+  await init();
+  // init() rebuilds the in-memory rows. Keep any other missing markers (and
+  // failed removals) until the next Dropbox reconciliation.
+  for (const loop of loops) loop.missing = knownMissing.has(loop.id);
+  if (failures.length) throw failures[0];
+  return pending.length;
+}
+
 export function updateLoop(id, changes) {
   const loop = getLoop(id);
   if (!loop) return;

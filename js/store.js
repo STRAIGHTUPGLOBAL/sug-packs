@@ -106,6 +106,13 @@ export const tagUseCount = (id) => state.loops.filter((l) => l.tags.includes(id)
 export const listLoops = () => [...state.loops].sort((a, b) => b.addedAt - a.addedAt);
 export const getLoop = (id) => state.loops.find((l) => l.id === id);
 export const untagged = () => listLoops().filter((l) => !l.tags.length);
+export async function checkLibraryFiles() { return false; }
+export async function removeMissingLoops(ids) {
+  const remove = new Set(ids.filter((id) => getLoop(id)?.missing));
+  state.loops = state.loops.filter((loop) => !remove.has(loop.id));
+  save();
+  return remove.size;
+}
 
 export function updateLoop(id, changes) {
   Object.assign(getLoop(id), changes);
