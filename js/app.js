@@ -424,6 +424,7 @@ function openTagger(ids, index = 0, onDone = () => {}) {
   const draft = new Set(loop.tags);
   const queue = ids.length > 1;
   const last = index === ids.length - 1;
+  const inPacks = store.listPacks().filter((pack) => pack.loopIds.includes(loop.id)).length;
   let adding = null;
   let notice = null;
 
@@ -443,6 +444,21 @@ function openTagger(ids, index = 0, onDone = () => {}) {
         <label class="row"><span class="row-label">Title</span><input class="row-input" data-f="title" value="${esc(loop.title)}" autocomplete="off"></label>
         <label class="row"><span class="row-label">BPM</span><input class="row-input" data-f="bpm" value="${esc(loop.bpm ?? "")}" inputmode="numeric" placeholder="None" autocomplete="off"></label>
         <label class="row"><span class="row-label">Key</span><input class="row-input" data-f="key" value="${esc(loop.key ?? "")}" placeholder="None" autocomplete="off"></label>
+      </div>
+      <div class="list" data-del-idle>
+        <button class="row" type="button" data-del-open><span class="row-main row-danger">Delete loop</span></button>
+      </div>
+      <div class="list" data-del-confirm hidden>
+        <div class="row">
+          <div class="row-main row-field">
+            <label for="del-name">Type the file name to delete it${inPacks ? ` · in ${plural(inPacks, "pack")}, their copies stay` : ""}</label>
+            <input id="del-name" data-del-input placeholder="${esc(loop.file)}" autocomplete="off" autocapitalize="off" spellcheck="false">
+          </div>
+        </div>
+        <div class="row row--actions">
+          <button class="button button--small" type="button" data-del-cancel>Cancel</button>
+          <button class="button button--small button--danger" type="button" data-del-go disabled>Delete for good</button>
+        </div>
       </div>
     </div>
     <div class="sheet-foot">
@@ -499,7 +515,7 @@ function openTagger(ids, index = 0, onDone = () => {}) {
     paintGroups();
   }
 
-  sheet.addEventListener("click", (event) => {
+  sheet.addEventListener("click", async (event) => {
     const chip = event.target.closest("[data-t-tag]");
     if (chip) {
       const id = chip.dataset.tTag;
@@ -515,10 +531,45 @@ function openTagger(ids, index = 0, onDone = () => {}) {
     const use = event.target.closest("[data-t-use]");
     if (use) { draft.add(use.dataset.tUse); adding = null; notice = null; return paintGroups(); }
     if (event.target.closest("[data-t-force]")) return addTag(adding, notice.label, true);
+    if (event.target.closest("[data-del-open]")) {
+      sheet.querySelector("[data-del-idle]").hidden = true;
+      sheet.querySelector("[data-del-confirm]").hidden = false;
+      sheet.querySelector("[data-del-input]").focus({ preventScroll: true });
+      return;
+    }
+    if (event.target.closest("[data-del-cancel]")) {
+      sheet.querySelector("[data-del-confirm]").hidden = true;
+      sheet.querySelector("[data-del-idle]").hidden = false;
+      sheet.querySelector("[data-del-input]").value = "";
+      return;
+    }
+    const go = event.target.closest("[data-del-go]");
+    if (go) {
+      go.disabled = true;
+      go.textContent = "Deleting…";
+      try {
+        await store.deleteLoop(loop.id);
+        unsubscribe();
+        closeSheet();
+        toast("Loop deleted");
+        onDone();
+      } catch (error) {
+        go.disabled = false;
+        go.textContent = "Delete for good";
+        toast(error.message || "Couldn't delete it");
+      }
+      return;
+    }
     if (event.target.closest("[data-t-play]")) return player.toggle(loop);
     if (event.target.closest("[data-t-skip]")) return next();
     if (event.target.closest("[data-t-save]")) return save();
   });
+  sheet.addEventListener("input", (event) => {
+    if (!event.target.matches("[data-del-input]")) return;
+    const typed = event.target.value.trim().toLowerCase();
+    sheet.querySelector("[data-del-go]").disabled = typed !== loop.file.toLowerCase();
+  });
+
   sheet.addEventListener("submit", (event) => {
     event.preventDefault();
     const form = event.target.closest("[data-t-new]");
@@ -785,16 +836,149 @@ function openPackSheet(packId, onChange = () => {}) {
 
 /* Profile ------------------------------------------------------------------------ */
 
-// A square picture, small enough to keep in the database.
-async function squareImage(file, size = 320) {
-  const bitmap = await createImageBitmap(file);
-  const side = Math.min(bitmap.width, bitmap.height);
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size);
-  bitmap.close?.();
-  return canvas.toDataURL("image/jpeg", 0.82);
+// Picking a picture: choose a photo, zoom and drag it inside the circle, save.
+// The saved picture is a 320px square JPEG, small enough to live in the database.
+const FRAME = 260;
+
+function openPicture(person, onDone = () => {}) {
+  let image = null;   // the chosen photo, once loaded
+  let zoom = 1;
+  let x = 0;
+  let y = 0;
+
+  const sheet = openSheet(`
+    <div class="sheet-head">
+      <div class="row-main"><h2 class="sheet-title">Your picture</h2><p class="sheet-sub">Shown on your loops and packs</p></div>
+      <button class="icon-button" type="button" data-sheet-close aria-label="Close">${icon("x")}</button>
+    </div>
+    <div class="sheet-body">
+      <div class="picture">
+        <div class="picture-frame" data-frame>
+          ${person.avatar ? `<img src="${esc(person.avatar)}" alt="" data-current>` : `<span class="picture-empty">${icon("camera")}</span>`}
+          <canvas data-canvas hidden></canvas>
+        </div>
+        <label class="picture-zoom" hidden data-zoom-row>
+          <input type="range" min="1" max="3" step="0.01" value="1" data-zoom>
+        </label>
+        <p class="picture-hint" data-hint>${person.avatar ? "" : "Any photo works: you can zoom and move it after picking."}</p>
+      </div>
+      <div class="list">
+        <label class="row row--tap">
+          <span class="row-main">${person.avatar ? "Choose a different photo" : "Choose a photo"}</span>
+          ${icon("camera", "row-chevron")}
+          <input type="file" accept="image/*" hidden data-file>
+        </label>
+        ${person.avatar ? '<button class="row" type="button" data-remove><span class="row-main row-danger">Remove picture</span></button>' : ""}
+      </div>
+    </div>
+    <div class="sheet-foot">
+      <button class="button" type="button" data-sheet-close>Cancel</button>
+      <button class="button button--primary" type="button" data-save disabled>Save</button>
+    </div>`);
+
+  const frame = sheet.querySelector("[data-frame]");
+  const canvas = sheet.querySelector("[data-canvas]");
+  const saveButton = sheet.querySelector("[data-save]");
+
+  // Draw what the circle shows: the photo, covering the frame, moved and zoomed.
+  function draw() {
+    if (!image) return;
+    const base = FRAME / Math.min(image.width, image.height);
+    const scale = base * zoom;
+    const w = image.width * scale;
+    const h = image.height * scale;
+    const limitX = Math.max(0, (w - FRAME) / 2);
+    const limitY = Math.max(0, (h - FRAME) / 2);
+    x = Math.max(-limitX, Math.min(limitX, x));
+    y = Math.max(-limitY, Math.min(limitY, y));
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = FRAME * ratio;
+    canvas.height = FRAME * ratio;
+    canvas.style.width = canvas.style.height = `${FRAME}px`;
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, FRAME, FRAME);
+    ctx.drawImage(image, FRAME / 2 - w / 2 + x, FRAME / 2 - h / 2 + y, w, h);
+  }
+
+  sheet.addEventListener("change", async (event) => {
+    if (!event.target.matches("[data-file]")) return;
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      image = await createImageBitmap(file);
+      zoom = 1;
+      x = 0;
+      y = 0;
+      sheet.querySelector("[data-current]")?.remove();
+      sheet.querySelector(".picture-empty")?.remove();
+      canvas.hidden = false;
+      sheet.querySelector("[data-zoom-row]").hidden = false;
+      sheet.querySelector("[data-hint]").textContent = "Drag to move, slide to zoom.";
+      saveButton.disabled = false;
+      draw();
+    } catch {
+      toast("That picture didn't open");
+    }
+  });
+
+  sheet.addEventListener("input", (event) => {
+    if (!event.target.matches("[data-zoom]")) return;
+    zoom = Number(event.target.value);
+    draw();
+  });
+
+  // Drag inside the circle.
+  let dragging = false;
+  let fromX = 0;
+  let fromY = 0;
+  frame.addEventListener("pointerdown", (event) => {
+    if (!image) return;
+    dragging = true;
+    fromX = event.clientX - x;
+    fromY = event.clientY - y;
+    frame.setPointerCapture(event.pointerId);
+  });
+  frame.addEventListener("pointermove", (event) => {
+    if (!dragging) return;
+    x = event.clientX - fromX;
+    y = event.clientY - fromY;
+    draw();
+  });
+  const stop = () => { dragging = false; };
+  frame.addEventListener("pointerup", stop);
+  frame.addEventListener("pointercancel", stop);
+
+  sheet.addEventListener("click", async (event) => {
+    if (event.target.closest("[data-remove]")) {
+      await store.setAvatar(null);
+      closeSheet();
+      toast("Picture removed");
+      return onDone();
+    }
+    if (!event.target.closest("[data-save]") || !image) return;
+    saveButton.disabled = true;
+    saveButton.textContent = "Saving…";
+    try {
+      const out = document.createElement("canvas");
+      out.width = out.height = 320;
+      const k = 320 / FRAME;
+      const base = FRAME / Math.min(image.width, image.height);
+      const scale = base * zoom;
+      const w = image.width * scale;
+      const h = image.height * scale;
+      out.getContext("2d").drawImage(image, (FRAME / 2 - w / 2 + x) * k, (FRAME / 2 - h / 2 + y) * k, w * k, h * k);
+      await store.setAvatar(out.toDataURL("image/jpeg", 0.85));
+      closeSheet();
+      toast("Picture saved");
+      onDone();
+    } catch (error) {
+      saveButton.disabled = false;
+      saveButton.textContent = "Save";
+      toast(error.message || "Couldn't save that picture");
+    }
+  });
 }
 
 function renderProfile(id) {
@@ -812,8 +996,11 @@ function renderProfile(id) {
         ? `<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="227"><h1 class="header-title">You</h1></div>`
         : `<div class="header-back"><a class="icon-button" href="#/me" aria-label="Back">${icon("back")}</a><h1 class="header-title">${esc(person.name)}</h1></div>`)}
       <div class="profile">
-        ${own ? `<button class="avatar avatar--xl" type="button" data-avatar aria-label="Change picture">${person.avatar ? `<img src="${esc(person.avatar)}" alt="">` : esc(initials(person.name))}<span class="avatar-edit">${icon("camera")}</span></button>
-        <input type="file" accept="image/*" hidden data-avatar-file>` : avatarHtml(person, "avatar--xl")}
+        ${own ? `
+          <button class="avatar-button" type="button" data-avatar aria-label="${person.avatar ? "Edit picture" : "Add a picture"}">
+            ${avatarHtml(person, "avatar--xl")}
+            <span class="avatar-edit">${icon(person.avatar ? "pencil" : "camera")}</span>
+          </button>` : avatarHtml(person, "avatar--xl")}
         <h2 class="profile-name">${esc(person.name)}</h2>
         <div class="stats">
           <div class="stat"><b>${person.packs ?? theirs.length}</b><span>packs</span></div>
@@ -841,7 +1028,6 @@ function renderProfile(id) {
         <p class="list-label">Account</p>
         <div class="list">
           <div class="row"><div class="row-main row-field"><label for="profile-name">Name on loops and packs</label><input id="profile-name" data-name value="${esc(person.name)}" autocomplete="off"></div></div>
-          ${person.avatar ? '<button class="row" type="button" data-avatar-clear><span class="row-main">Remove picture</span></button>' : ""}
           <button class="row" type="button" data-signout><span class="row-main row-danger">Sign out</span></button>
         </div>` : ""}
     </section>`;
@@ -858,12 +1044,7 @@ function renderProfile(id) {
     }
     const row = event.target.closest("[data-pack]");
     if (row) return openPackSheet(row.dataset.pack, refresh);
-    if (event.target.closest("[data-avatar]")) return view.querySelector("[data-avatar-file]").click();
-    if (event.target.closest("[data-avatar-clear]")) {
-      await store.setAvatar(null);
-      toast("Picture removed");
-      return refresh();
-    }
+    if (event.target.closest("[data-avatar]")) return openPicture(person, refresh);
     if (event.target.closest("[data-signout]")) {
       await store.signOut();
       signedIn = false;
@@ -873,19 +1054,6 @@ function renderProfile(id) {
     }
   };
   const onChange = async (event) => {
-    if (event.target.matches("[data-avatar-file]")) {
-      const file = event.target.files?.[0];
-      event.target.value = "";
-      if (!file) return;
-      try {
-        await store.setAvatar(await squareImage(file));
-        toast("Picture saved");
-        refresh();
-      } catch (error) {
-        toast(error.message || "Couldn't use that picture");
-      }
-      return;
-    }
     if (event.target.matches("[data-name]")) {
       const value = event.target.value.trim();
       if (!value || value === person.name) return;

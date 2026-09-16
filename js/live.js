@@ -195,6 +195,13 @@ export function updateLoop(id, changes) {
   });
 }
 
+// Gone for good: the file in Dropbox and the row. Packs keep their own copies.
+export async function deleteLoop(loopId) {
+  await server("delete_loop", { loopId });
+  links.delete(loopId);
+  await init();
+}
+
 // Playback links last four hours; ask for a batch ahead of the swipe deck.
 export async function warm(ids) {
   const soon = Date.now() + 10 * 60_000;
@@ -322,6 +329,12 @@ export async function setAvatar(avatar) {
   check(await sb.from("profiles").update({ avatar }).eq("id", me.id).select().single());
   const mine = profiles.get(me.id);
   if (mine) mine.avatar = avatar ?? "";
+}
+
+export async function setPersonName(userId, name) {
+  if (userId === me?.id) return setName(name);
+  await server("set_person_name", { userId, name });
+  await init();
 }
 
 export const isFavorite = (packId, userId = me?.id) => favorites.get(packId)?.has(userId) ?? false;

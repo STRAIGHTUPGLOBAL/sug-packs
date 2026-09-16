@@ -114,6 +114,9 @@ Nothing about who worked on a loop is ever thrown away.
 - **Supabase returns at most 1000 rows per request.** `fetchAll()` pages.
 - **Covers are generated from names** (`cover.js`), so renaming a pack changes
   its cover. That is intended: identity follows the name.
+- **Type is closed.** Melodic and Hard are the only two, in the app (a group
+  marked `fixed` in `GROUPS` shows no add button) and in the database
+  (`tags_type_is_closed`).
 - **Tag ids encode the group**, so the same word can exist in two groups but
   never twice in one.
 - **The vocabulary is the owners', not ours.** Only `type` ships with tags

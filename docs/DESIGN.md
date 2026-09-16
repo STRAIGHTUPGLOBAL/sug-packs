@@ -22,6 +22,9 @@ at the **bottom**: each page's controls (search, upload, filters, sort) in a
 glass dock, with the navigation under them, centred and big enough for a thumb.
 The top holds identity only: the logotype on Build, the mark and title elsewhere.
 
+Four tabs: Build, Library, Packs, You. "You" is your own profile — picture,
+name, counts, favourites, your packs, the other people, and the account rows.
+
 The dock is one fixed element outside the page (`[data-dock]`); pages fill it via
 `setDock(active, controls)`. Its height is measured into `--dock-h` so the page
 and the floating bar keep clear of it. The swipe deck and the pack page hide it:

@@ -225,6 +225,10 @@ body:has(.dock:not([hidden])) .bar { bottom: calc(var(--dock-h, 150px) + 12px); 
 .button:disabled { opacity: 0.35; pointer-events: none; box-shadow: none; }
 .button .icon { width: 18px; height: 18px; }
 .button.is-done { background: var(--green); color: #07070A; box-shadow: none; }
+.button--danger { background: rgba(255, 122, 122, 0.16); color: var(--rose); }
+.button--danger:hover { background: rgba(255, 122, 122, 0.26); }
+.row--actions { gap: 10px; justify-content: flex-end; }
+.row--actions .button { flex: 1; }
 
 .text-button {
   height: 40px;
@@ -475,22 +479,49 @@ button.thumb:active { transform: scale(0.92); transition-duration: 80ms; }
   font-weight: 600;
 }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
-.avatar--xl { width: 104px; height: 104px; font-size: 38px; cursor: pointer; }
+.avatar--xl { width: 104px; height: 104px; font-size: 38px; }
+
+/* The button holds the circle and the badge; only the circle clips. */
+.avatar-button { position: relative; padding: 0; border: 0; background: none; line-height: 0; }
+.avatar-button:active .avatar { transform: scale(0.96); }
+.avatar-button .avatar { transition: transform 260ms var(--spring); }
 .avatar-edit {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  right: -2px;
+  bottom: -2px;
   display: grid;
   place-items: center;
   width: 34px;
   height: 34px;
   border: 3px solid var(--bg);
   border-radius: 50%;
-  background: var(--surface-strong);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
+  background: #23232c;
+  color: var(--text);
 }
 .avatar-edit .icon { width: 16px; height: 16px; }
+
+/* Picking a profile picture */
+.picture { display: grid; justify-items: center; gap: 16px; padding: 8px 0 20px; }
+.picture-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 260px;
+  height: 260px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  cursor: grab;
+  touch-action: none;
+}
+.picture-frame:active { cursor: grabbing; }
+.picture-frame img, .picture-frame canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+.picture-empty { color: var(--text-3); }
+.picture-empty .icon { width: 40px; height: 40px; }
+.picture-zoom { width: 260px; }
+.picture-zoom input { width: 100%; accent-color: var(--accent); }
+.picture-hint { color: var(--text-3); font-size: 14px; text-align: center; max-width: 280px; }
 
 /* Profile */
 .profile { display: grid; justify-items: center; gap: 14px; padding: 8px 0 28px; text-align: center; }

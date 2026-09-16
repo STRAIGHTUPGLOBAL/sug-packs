@@ -31,10 +31,7 @@ Keep entries short: goal, why, and how you will know it works.
   Done when: long-press or a select mode, a tag sheet that applies to the
   selection, and the count of what changed.
 
-- [ ] **Remove a loop**
-  Goal: delete a loop from the library and from Dropbox.
-  Note: the server already has `delete_file`; this is UI plus a guard when the
-  loop sits in an existing pack (warn, don't silently break the pack).
+
 
 - [ ] **Listen through a pack**
   Goal: open a pack and play it end to end, or shuffled, without leaving the app.
@@ -84,6 +81,9 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Done
 
+- [x] Remove a loop: type its file name to confirm, then it goes from Dropbox
+      and the library. Packs that hold it keep their own copies.
+- [x] Profile picture editor: choose, zoom, drag inside the circle, or remove.
 - [x] Tag loops by hand, pick tags, swipe, create a Dropbox pack, copy the link.
 - [x] Clean file names per pack: remove `@straightupglobal` (typos included) and
       collab handles separately. Originals never change.

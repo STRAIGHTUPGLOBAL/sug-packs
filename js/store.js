@@ -6,7 +6,7 @@ import { parseName } from "./names.js";
 import { GROUPS, STARTER_TAGS, slug } from "./tags.js";
 
 const KEY = "sugpacks-demo-v1";
-const USERS = ["Razz", "12"];
+const USERS = ["Razz", "Twelve"];
 const DAY = 86400000;
 
 let state = null;
@@ -44,8 +44,8 @@ async function seed() {
     duration: peaks[demo.file]?.duration || 0,
     peaks: peaks[demo.file]?.peaks || [],
     src: DEMO_AUDIO + encodeURIComponent(demo.file),
-    by: i % 3 ? "Razz" : "12",
-    addedBy: i % 3 ? "Razz" : "12",
+    by: i % 3 ? "Razz" : "Twelve",
+    addedBy: i % 3 ? "Razz" : "Twelve",
     addedAt: now - (i + 1) * DAY / 3,
   }));
   const byFile = new Map(loops.map((l) => [l.file, l.id]));
@@ -156,6 +156,11 @@ async function analyse(file, count = 160) {
   return { duration: buffer.duration, peaks: peaks.map((p) => +(p / top).toFixed(2)) };
 }
 
+export async function deleteLoop(loopId) {
+  state.loops = state.loops.filter((l) => l.id !== loopId);
+  save();
+}
+
 /* Packs ------------------------------------------------------------------- */
 
 export const listPacks = () => [...state.packs].sort((a, b) => b.createdAt - a.createdAt);
@@ -214,6 +219,8 @@ export async function setAvatar(avatar) {
   state.avatars = { ...(state.avatars ?? {}), [state.user]: avatar ?? "" };
   save();
 }
+
+export async function setPersonName(userId, name) { if (userId === state.user) state.user = name; save(); }
 
 export const isFavorite = (packId, user = state.user) => (state.favorites ?? []).includes(packId) && user === state.user;
 export const favoriteCount = (packId) => ((state.favorites ?? []).includes(packId) ? 1 : 0);
