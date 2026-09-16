@@ -49,6 +49,11 @@ Keep entries short: goal, why, and how you will know it works.
   Note: packs point at library loops, so the original file names and handles are
   always available again; the new pack decides its own cleaning.
 
+- [ ] **Notice when a loop's file is missing**
+  Goal: a loop whose Dropbox file was deleted outside the app shows as missing
+  instead of failing silently when played, with a one-tap "remove this entry".
+  Why: deleting straight in Dropbox leaves the entry behind (happened 16 Sep).
+
 ## Soon
 
 - [ ] **Edit a pack's contents** — add or remove loops after it was created
