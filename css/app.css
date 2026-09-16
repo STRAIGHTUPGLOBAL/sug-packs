@@ -407,7 +407,7 @@ button.thumb:active { transform: scale(0.92); transition-duration: 80ms; }
 .signin-error { color: var(--rose); font-size: 15px; text-align: center; }
 
 /* Filters and sorting on the pack stash */
-.filters { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 20px; }
 .filters .chip .icon { width: 15px; height: 15px; }
 .chip--sort { margin-left: auto; color: var(--text-2); }
 .chip--sort .icon { color: var(--text-3); }

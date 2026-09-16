@@ -1,0 +1,114 @@
+# Architecture
+
+SUG Packs is a small static web app with two servers behind it: Supabase
+(database + logins) and one Supabase Edge Function that is the only thing
+holding Dropbox credentials. There is no build step and no framework.
+
+```
+browser (GitHub Pages, packs.straightup-global.com)
+   │
+   ├── Supabase Postgres  ── tags, loops, packs, profiles, favourites   (row level security)
+   ├── Supabase Auth      ── two logins, sessions kept in the browser
+   └── Edge Function "dropbox"
+            │  (holds DROPBOX_APP_KEY + DROPBOX_REFRESH_TOKEN)
+            └── Dropbox app folder
+                   /Library/…    every loop, uploaded once
+                   /Packs/<name>/…  copies, shared by link
+```
+
+Audio never passes through a server we run: the browser uploads straight to
+Dropbox with a one-hour link, and plays from four-hour temporary links.
+
+## Files
+
+```
+index.html            shell: wash, splash, view container, sheet layer, toast
+css/tokens.css        colours, glass, type, easing, layout variables
+css/app.css           base, splash, page transitions, header + nav, buttons,
+                      search, chips, grouped lists, thumbs, avatars, profile,
+                      filters, floating bar, toast
+css/screens.css       swipe deck, pack page, cta, result screens, sheet
+js/app.js             start-up, sign-in, routing, Build, Library, tag sheet,
+                      Packs stash, pack sheet, profile pages
+js/swipe.js           swipe session, deck, pack page, creating → done
+js/data.js            picks live.js or store.js and re-exports the same names
+js/live.js            Supabase + Dropbox implementation
+js/store.js           demo implementation (localStorage + IndexedDB)
+js/player.js          one shared audio element
+js/names.js           parse title/BPM/key/handles; cleaned pack file names
+js/tags.js            tag groups, starter vocabulary, look-alike check, match rule
+js/cover.js           name → gradient cover art
+js/ui.js              escaping, icons, toast, sheet, formatting, clipboard
+js/config.js          Supabase URL + publishable key; DEMO switch
+supabase/schema.sql   first database setup
+supabase/update-2-*.sql  profiles pictures, favourites, usage
+supabase/functions/dropbox/index.ts   the server function
+setup/dropbox-token.mjs               one-off Dropbox connection
+dev-server.mjs        local static server with byte ranges (port 8092)
+```
+
+## The data layer contract
+
+`js/data.js` is the only thing the screens import. Both implementations export
+the same names, so the screens never know whether they are live or in the demo:
+
+`live`, `session`, `signIn`, `signOut`, `init`, `refresh`, `reset`,
+`setErrorHandler`, `users`, `currentUser`, `setUser`, `setName`, `listTags`,
+`tagsById`, `addTag`, `tagUseCount`, `listLoops`, `getLoop`, `untagged`,
+`updateLoop`, `audioUrl`, `warm`, `addFiles`, `listPacks`, `createPack`,
+`deletePack`, `renamePack`, `myId`, `profileOf`, `people`, `setAvatar`,
+`isFavorite`, `favoriteCount`, `favoritesOf`, `toggleFavorite`, `notePackUse`.
+
+Everything is loaded into memory once (`init`) and read synchronously; writes
+update memory immediately and save in the background. `deletePack` and
+`renamePack` are the exceptions: they re-read everything, because a background
+refresh that started mid-delete used to bring the pack back.
+
+`?demo` in the address, or an empty `SUPABASE_URL`, runs the demo instead.
+
+## Database
+
+| Table | What |
+|---|---|
+| `profiles` | one row per login: name, avatar (a small JPEG data URL), created_at |
+| `tags` | `id` is `"<group>:<slug>"`, e.g. `genre:rnb`; groups: genre, vibe, instrument, artist |
+| `loops` | file name, `dropbox_path`, title, bpm, key, collabs[], tags[], duration, added_by |
+| `packs` | name, loop_ids[], remove_sug, remove_collabs, dropbox_path, link, uses, last_used_at |
+| `pack_favorites` | (pack_id, user_id) |
+
+Access rules: sign-ups are off, so everyone with a login is a member.
+`is_member()` gates every table. Members read and write loops and tags, read
+packs, and manage only their own favourites and their own profile row. Packs
+are written by the server function alone, and `uses` only moves through
+`note_pack_use()`. Nothing is readable signed out.
+
+## The server function
+
+`supabase/functions/dropbox/index.ts`, deployed as `dropbox`, JWT verification
+off (it checks the caller itself against `profiles`).
+
+| Action | What it does |
+|---|---|
+| `me` | the caller's profile |
+| `upload_link` | picks the free path in `/Library`, returns a one-hour direct upload link **and that path** |
+| `library_files` | what is in `/Library` |
+| `delete_file` | removes one file, inside `/Library` only |
+| `play_links` | four-hour playback links, up to 25 at a time |
+| `create_pack` | copies loops into `/Packs/<name>` under cleaned names, shares the folder, writes the pack row |
+| `rename_pack` | moves the Dropbox folder (the share link survives) and updates the row |
+| `delete_pack` | deletes the folder and the row; loops in `/Library` stay |
+
+## Things that will bite you
+
+- **Dropbox's temporary upload link replies with a checksum, not metadata.**
+  The path has to be decided before the upload; that is what `upload_link` returns.
+- **Supabase returns at most 1000 rows per request.** `fetchAll()` pages.
+- **Covers are generated from names** (`cover.js`), so renaming a pack changes
+  its cover. That is intended: identity follows the name.
+- **Tag ids encode the group**, so the same word can exist in two groups but
+  never twice in one.
+- **The swipe session lives in localStorage** (`sugpacks-session`), so closing
+  the phone mid-swipe keeps your place.
+- **Phones need one tap before audio plays**; after that each card plays itself.
+- **Avatars are data URLs in the database**, capped by a check constraint. No
+  file storage is used anywhere.
