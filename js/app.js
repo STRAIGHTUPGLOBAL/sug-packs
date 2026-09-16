@@ -14,6 +14,7 @@ const TABS = [
   { id: "build", label: "Build", icon: "build" },
   { id: "library", label: "Library", icon: "library" },
   { id: "packs", label: "Packs", icon: "packs" },
+  { id: "me", label: "You", icon: "person" },
 ];
 const TAB_IDS = TABS.map((t) => t.id);
 
@@ -43,7 +44,7 @@ async function route() {
   if (!document.querySelector("[data-sheet]").hidden) closeSheet();
   if (page !== "pack") player.stop();
 
-  const asTab = (name) => (name === "u" ? "packs" : name);
+  const asTab = (name) => (name === "u" ? "me" : name);
   const fromTab = TAB_IDS.includes(asTab(lastPage));
   const toTab = TAB_IDS.includes(asTab(page));
   if (lastPage !== null && view.firstElementChild) {
@@ -65,6 +66,7 @@ async function route() {
   else if (page === "library") cleanup = renderLibrary();
   else if (page === "packs") cleanup = renderPacks();
   else if (page === "u") cleanup = renderProfile(decodeURIComponent(location.hash.split("/")[2] ?? ""));
+  else if (page === "me") cleanup = renderProfile(store.myId());
   else cleanup = renderBuild();
 }
 
@@ -610,8 +612,6 @@ function renderPacks() {
     <section class="${pageClass()}">
       ${header("packs", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="227"><h1 class="header-title">Packs</h1></div>')}
       <div data-list></div>
-      <p class="list-label">People</p>
-      <div class="list" data-people></div>
     </section>`;
 
   setDock("packs", `
@@ -643,15 +643,6 @@ function renderPacks() {
       ? `<ul class="list ${first ? "stagger" : ""}">${shown.map(packRow).join("")}</ul>`
       : `<p class="empty">${q ? "Nothing found." : packFilter === "fav" ? "No favourites yet. Tap a star." : "No packs yet."}</p>`;
 
-    view.querySelector("[data-people]").innerHTML = store.people().map((person) => `
-      <a class="row row--media" href="#/u/${encodeURIComponent(person.id)}">
-        ${avatarHtml(person)}
-        <div class="row-main">
-          <div class="row-title">${esc(person.name)}${person.id === mine ? " · you" : ""}</div>
-          <div class="row-sub">${plural(person.packs, "pack")} · ${plural(person.loops, "loop")}</div>
-        </div>
-        ${icon("chevron", "row-chevron")}
-      </a>`).join("");
     first = false;
   }
 
@@ -813,9 +804,13 @@ function renderProfile(id) {
   const theirs = store.listPacks().filter((pack) => pack.by === id);
   const pinned = store.favoritesOf(id);
 
+  const others = store.people().filter((p) => p.id !== id);
+
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("packs", `<div class="header-back"><a class="icon-button" href="#/packs" aria-label="Back">${icon("back")}</a><h1 class="header-title">${esc(person.name)}</h1></div>`)}
+      ${header("me", own
+        ? `<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="227"><h1 class="header-title">You</h1></div>`
+        : `<div class="header-back"><a class="icon-button" href="#/me" aria-label="Back">${icon("back")}</a><h1 class="header-title">${esc(person.name)}</h1></div>`)}
       <div class="profile">
         ${own ? `<button class="avatar avatar--xl" type="button" data-avatar aria-label="Change picture">${person.avatar ? `<img src="${esc(person.avatar)}" alt="">` : esc(initials(person.name))}<span class="avatar-edit">${icon("camera")}</span></button>
         <input type="file" accept="image/*" hidden data-avatar-file>` : avatarHtml(person, "avatar--xl")}
@@ -829,6 +824,19 @@ function renderProfile(id) {
       ${pinned.length ? `<p class="list-label">${own ? "Your favourites" : "Favourites"}</p><ul class="list">${sortPacks(pinned).map(packRow).join("")}</ul>` : ""}
       <p class="list-label">${own ? "Your packs" : "Packs"}</p>
       ${theirs.length ? `<ul class="list">${sortPacks(theirs).map(packRow).join("")}</ul>` : '<p class="empty">No packs yet.</p>'}
+      ${own && others.length ? `
+        <p class="list-label">People</p>
+        <div class="list">
+          ${others.map((other) => `
+            <a class="row row--media" href="#/u/${encodeURIComponent(other.id)}">
+              ${avatarHtml(other)}
+              <div class="row-main">
+                <div class="row-title">${esc(other.name)}</div>
+                <div class="row-sub">${plural(other.packs, "pack")} · ${plural(other.loops, "loop")}</div>
+              </div>
+              ${icon("chevron", "row-chevron")}
+            </a>`).join("")}
+        </div>` : ""}
       ${own ? `
         <p class="list-label">Account</p>
         <div class="list">
@@ -838,7 +846,7 @@ function renderProfile(id) {
         </div>` : ""}
     </section>`;
 
-  setDock("packs");
+  setDock("me");
   const refresh = () => renderProfile(id);
 
   const onClick = async (event) => {
