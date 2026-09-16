@@ -1,7 +1,7 @@
 // One audio element for the whole app, so only one loop ever plays, and
 // phones that need a tap before sound keep their permission across swipes.
 
-import { audioUrl } from "./store.js";
+import { audioUrl } from "./data.js";
 
 const audio = new Audio();
 audio.preload = "auto";

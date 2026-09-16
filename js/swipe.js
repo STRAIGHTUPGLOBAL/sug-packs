@@ -2,7 +2,7 @@
 
 import { coverStyle } from "./cover.js";
 import * as player from "./player.js";
-import * as store from "./store.js";
+import * as store from "./data.js";
 import { tokens } from "./names.js";
 import { GROUPS } from "./tags.js";
 import { copyText, esc, icon, toast } from "./ui.js";
@@ -266,6 +266,8 @@ export function renderSwipe(view, go) {
   const unsubscribe = player.subscribe(sync);
 
   paint("first");
+  // Fetch playback links ahead, so the next cards start the moment they arrive.
+  store.warm(session.deck.slice(session.index, session.index + 50)).catch(() => {});
   return () => {
     document.removeEventListener("keydown", onKey);
     unsubscribe();
@@ -416,10 +418,17 @@ export function renderPack(view, go) {
       </section>`;
 
     const started = performance.now();
-    const pack = await store.createPack({ name, loopIds: session.kept, removeSug: session.removeSug, removeCollabs: session.removeCollabs }, (done) => {
-      view.querySelector("[data-status]").textContent = `Copying ${done} of ${total}`;
-      view.querySelector("[data-bar]").style.width = `${(done / total) * 100}%`;
-    });
+    let pack;
+    try {
+      pack = await store.createPack({ name, loopIds: session.kept, removeSug: session.removeSug, removeCollabs: session.removeCollabs }, (done) => {
+        view.querySelector("[data-status]").textContent = `Copying ${done} of ${total}`;
+        view.querySelector("[data-bar]").style.width = `${(done / total) * 100}%`;
+      });
+    } catch (error) {
+      // Nothing is lost: the pack is still open, so they can simply try again.
+      toast(error.message || "Couldn't create the pack");
+      return go("#/pack");
+    }
     await sleep(Math.max(250, 1300 - (performance.now() - started)));
     endSession();
     finish(view, pack);

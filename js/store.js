@@ -214,3 +214,13 @@ async function idbGet(key) {
     request.onerror = () => reject(request.error);
   });
 }
+
+/* Same shape as live.js ------------------------------------------------------ */
+
+export const live = false;
+export const session = async () => ({ name: state?.user ?? "Razz" });
+export const signIn = async () => session();
+export async function signOut() { /* demo has no login */ }
+export async function refresh() { return false; }
+export async function warm() { /* demo audio is local */ }
+export function setErrorHandler() { /* demo never fails a save */ }

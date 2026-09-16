@@ -1,0 +1,21 @@
+# A free Supabase project pauses after a quiet week. This says hello once a day.
+# It calls ping(), which reads nothing.
+name: Keep Supabase awake
+
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the database
+        run: |
+          curl -fsS -X POST "https://cadmgskxpwzjgalplnse.supabase.co/rest/v1/rpc/ping" \
+            -H "apikey: sb_publishable_ugcwStIcQljgtt8xU72tvA_Vs4CsKKw" \
+            -H "Authorization: Bearer sb_publishable_ugcwStIcQljgtt8xU72tvA_Vs4CsKKw" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+          echo

@@ -390,6 +390,19 @@ button.thumb:active { transform: scale(0.92); transition-duration: 80ms; }
 @keyframes bar-out { to { opacity: 0; transform: translate(-50%, 24px) scale(0.96); } }
 @keyframes count-bump { 40% { transform: translateY(-3px); } }
 
+/* Sign in: the logo, two fields, one button. */
+.signin {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 44px;
+  min-height: calc(100svh - var(--safe-top) - var(--safe-bottom) - 80px);
+}
+.signin-logo { width: min(62vw, 300px); height: auto; }
+.signin-form { display: grid; gap: 16px; width: 100%; max-width: 380px; }
+.signin-form .list + .button { margin-top: 4px; }
+.signin-error { color: var(--rose); font-size: 15px; text-align: center; }
+
 /* Empty states */
 .empty { padding: 64px 16px; text-align: center; color: var(--text-3); }
 .empty .button { margin-top: 16px; }

@@ -1,9 +1,9 @@
-// SUG Packs: start-up, routing and the calm screens (Build, Library, tag sheet, Packs).
-// The swipe deck and pack builder live in swipe.js.
+// SUG Packs: start-up, sign-in, routing and the calm screens (Build, Library,
+// tag sheet, Packs). The swipe deck and pack builder live in swipe.js.
 
 import { coverStyle } from "./cover.js";
 import * as player from "./player.js";
-import * as store from "./store.js";
+import * as store from "./data.js";
 import * as swipe from "./swipe.js";
 import { packName } from "./names.js";
 import { GROUPS, lookalike, matches, slug } from "./tags.js";
@@ -22,6 +22,7 @@ let lastPage = null;
 let navFrom = 0;
 let keepHeader = false;
 let routeToken = 0;
+let signedIn = false;
 const selected = new Set();
 let tagQuery = "";
 let libraryQuery = "";
@@ -36,6 +37,7 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 async function route() {
   const token = ++routeToken;
   const page = currentPage();
+  if (!signedIn) return renderSignIn();
   cleanup?.();
   cleanup = null;
   if (!document.querySelector("[data-sheet]").hidden) closeSheet();
@@ -96,6 +98,55 @@ function syncThumbs(root, s) {
     if (button.classList.contains("is-playing") === on) return;
     button.classList.toggle("is-playing", on);
     button.innerHTML = icon(on ? "pause" : "play");
+  });
+}
+
+/* Sign in ------------------------------------------------------------------------ */
+
+function renderSignIn() {
+  cleanup?.();
+  cleanup = null;
+  lastPage = null;
+  view.classList.remove("is-leaving", "is-leaving-all");
+  view.innerHTML = `
+    <section class="page enter signin">
+      <img class="signin-logo" src="assets/sug-packs-logotype.png" alt="SUG Packs" width="1200" height="213">
+      <form class="signin-form" data-signin novalidate>
+        <div class="list">
+          <div class="row"><div class="row-main row-field"><label for="signin-email">Email</label><input id="signin-email" name="email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false"></div></div>
+          <div class="row"><div class="row-main row-field"><label for="signin-password">Password</label><input id="signin-password" name="password" type="password" autocomplete="current-password"></div></div>
+        </div>
+        <button class="button button--primary button--block" type="submit">Sign in</button>
+        <p class="signin-error" data-error hidden></p>
+      </form>
+    </section>`;
+
+  const form = view.querySelector("[data-signin]");
+  const button = form.querySelector("button");
+  const message = form.querySelector("[data-error]");
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!form.email.value.trim() || !form.password.value) {
+      message.textContent = "Enter your email and password.";
+      message.hidden = false;
+      return;
+    }
+    button.disabled = true;
+    button.textContent = "Signing in…";
+    message.hidden = true;
+    try {
+      await store.signIn(form.email.value, form.password.value);
+      await store.init();
+      signedIn = true;
+      view.classList.add("is-leaving", "is-leaving-all");
+      await sleep(180);
+      route();
+    } catch (error) {
+      message.textContent = error.message || "Couldn't sign in.";
+      message.hidden = false;
+      button.disabled = false;
+      button.textContent = "Sign in";
+    }
   });
 }
 
@@ -283,7 +334,7 @@ function renderLibrary() {
             <div class="row-title">${esc(loop.title)}</div>
             <div class="row-sub ${loop.tags.length ? "" : "row-sub--amber"}">${loop.tags.length ? esc(loopSub(loop, byId)) : `${loop.bpm ? `${loop.bpm} BPM · ` : ""}No tags`}</div>
           </div>
-        </li>`).join("")}</ul>` : `<p class="empty">${q ? "Nothing found." : "No loops yet."}</p>`}`;
+        </li>`).join("")}</ul>` : `<p class="empty">${q ? "Nothing found." : "No loops yet. Tap + to upload."}</p>`}`;
     first = false;
     syncThumbs(results, player.state());
   }
@@ -313,8 +364,10 @@ function renderLibrary() {
     await sleep(250);
     slot.innerHTML = "";
     paint();
-    toast(`${plural(added.length, "loop")} added`);
-    openTagger(added.map((l) => l.id), 0, paint);
+    const skipped = added.skipped?.length ?? 0;
+    if (added.length) toast(`${plural(added.length, "loop")} added${skipped ? ` · ${skipped} already in the library` : ""}`);
+    else if (skipped) toast(`${plural(skipped, "loop")} already in the library`);
+    if (added.length) openTagger(added.map((l) => l.id), 0, paint);
   };
 
   view.addEventListener("click", onClick);
@@ -398,6 +451,7 @@ function openTagger(ids, index = 0, onDone = () => {}) {
   function addTag(group, label, force = false) {
     const clean = label.trim().replace(/\s+/g, " ");
     if (!clean) return;
+    if (!slug(clean)) { toast("Use letters or numbers in a tag"); return; }
     const tags = store.listTags();
     const exact = tags.find((t) => t.group === group && slug(t.label) === slug(clean));
     if (exact) {
@@ -498,6 +552,7 @@ function renderPacks() {
     </section>`;
 
   const copy = async (pack) => {
+    if (!pack.link) return toast("This pack has no link");
     await copyText(pack.link);
     toast("Link copied");
   };
@@ -534,6 +589,28 @@ function renderPacks() {
 }
 
 function openAccount() {
+  if (store.live) {
+    const sheet = openSheet(`
+      <div class="sheet-head">
+        <div class="row-main"><h2 class="sheet-title">${esc(store.currentUser())}</h2><p class="sheet-sub">Signed in on this device</p></div>
+        <button class="icon-button" type="button" data-sheet-close aria-label="Close">${icon("x")}</button>
+      </div>
+      <div class="sheet-body">
+        <div class="list">
+          <button class="row" type="button" data-signout><span class="row-main row-danger">Sign out</span></button>
+        </div>
+      </div>`);
+    sheet.querySelector("[data-signout]").addEventListener("click", async () => {
+      await store.signOut();
+      signedIn = false;
+      swipe.endSession();
+      selected.clear();
+      closeSheet();
+      renderSignIn();
+    });
+    return;
+  }
+
   const sheet = openSheet(`
     <div class="sheet-head">
       <div class="row-main"><h2 class="sheet-title">Account</h2><p class="sheet-sub">Demo · data stays in this browser</p></div>
@@ -574,11 +651,29 @@ function openAccount() {
 history.scrollRestoration = "manual";
 window.addEventListener("hashchange", route);
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSheet(); });
+store.setErrorHandler((error) => toast(error?.message || "Something went wrong"));
+
+// Back in the app after a while: pick up what the other person added meanwhile.
+document.addEventListener("visibilitychange", async () => {
+  if (document.hidden || !store.live || !signedIn) return;
+  const changed = await store.refresh({ ifOlderThan: 60_000 }).catch(() => false);
+  if (changed && TAB_IDS.includes(currentPage()) && document.querySelector("[data-sheet]").hidden) route();
+});
+
+async function boot() {
+  try {
+    signedIn = Boolean(await store.session());
+    if (signedIn) await store.init();
+  } catch (error) {
+    signedIn = false;
+    toast(error?.message || "Couldn't load the library");
+  }
+}
 
 const splash = document.querySelector("[data-splash]");
 const started = performance.now();
 await Promise.all([
-  store.init(),
+  boot(),
   document.fonts?.ready.catch(() => {}),
   splash?.querySelector("img")?.decode?.().catch(() => {}),
 ]);
