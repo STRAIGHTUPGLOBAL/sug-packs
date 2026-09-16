@@ -5,6 +5,7 @@ import { coverStyle } from "./cover.js";
 import * as player from "./player.js";
 import * as store from "./data.js";
 import * as swipe from "./swipe.js";
+import * as uploads from "./uploads.js";
 import { packName } from "./names.js";
 import { GROUPS, lookalike, matches, slug } from "./tags.js";
 import { ago, closeSheet, copyText, esc, icon, openSheet, replaceSheet, toast } from "./ui.js";
@@ -325,7 +326,7 @@ function renderLibrary() {
   view.innerHTML = `
     <section class="${pageClass()}">
       ${header("library", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="227"><h1 class="header-title">Library</h1></div>')}
-      <div data-progress></div>
+      <div data-uploads></div>
       <div data-results></div>
     </section>`;
 
@@ -336,7 +337,12 @@ function renderLibrary() {
     </div>`);
 
   const results = view.querySelector("[data-results]");
+  const uploadSlot = view.querySelector("[data-uploads]");
   let first = true;
+
+  function paintUploads() {
+    uploadSlot.innerHTML = uploads.summaryHTML();
+  }
 
   function paint() {
     if (currentPage() !== "library") return; // a sheet closing after you've moved on
@@ -371,6 +377,7 @@ function renderLibrary() {
   }
 
   const onClick = (event) => {
+    if (event.target.closest("[data-upload-queue]")) { uploads.openQueue(); return; }
     const play = event.target.closest("[data-play]");
     if (play) { player.toggle(store.getLoop(play.dataset.play)); return; }
     if (event.target.closest("[data-queue]")) { openTagger(store.untagged().map((l) => l.id), 0, paint); return; }
@@ -382,23 +389,12 @@ function renderLibrary() {
     libraryQuery = event.target.value;
     paint();
   };
-  const onChange = async (event) => {
+  const onChange = (event) => {
     if (!event.target.matches("[data-upload]")) return;
     const files = [...event.target.files];
     event.target.value = "";
     if (!files.length) return;
-    const slot = view.querySelector("[data-progress]");
-    slot.innerHTML = '<div class="progress progress--full"><i></i></div>';
-    const added = await store.addFiles(files, (done, total) => {
-      slot.querySelector("i").style.width = `${(done / total) * 100}%`;
-    });
-    await sleep(250);
-    slot.innerHTML = "";
-    paint();
-    const skipped = added.skipped?.length ?? 0;
-    if (added.length) toast(`${plural(added.length, "loop")} added${skipped ? ` · ${skipped} already in the library` : ""}`);
-    else if (skipped) toast(`${plural(skipped, "loop")} already in the library`);
-    if (added.length) openTagger(added.map((l) => l.id), 0, paint);
+    uploads.enqueue(files);
   };
 
   view.addEventListener("click", onClick);
@@ -408,6 +404,11 @@ function renderLibrary() {
   dock.addEventListener("input", onInput);
   dock.addEventListener("change", onChange);
   const unsubscribe = player.subscribe((s) => syncThumbs(results, s));
+  const unsubscribeUploads = uploads.subscribe((update) => {
+    paintUploads();
+    if (["done", "finished"].includes(update?.status)) paint();
+  });
+  paintUploads();
   paint();
   return () => {
     view.removeEventListener("click", onClick);
@@ -417,6 +418,7 @@ function renderLibrary() {
     dock.removeEventListener("input", onInput);
     dock.removeEventListener("change", onChange);
     unsubscribe();
+    unsubscribeUploads();
   };
 }
 

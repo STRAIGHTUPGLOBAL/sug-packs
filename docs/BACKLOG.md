@@ -19,12 +19,6 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Now
 
-- [ ] **Bulk upload**
-  Goal: drop 50 files onto the Library and walk away.
-  Now: files upload one after another and the whole screen waits.
-  Done when: a queue with per-file progress, failures listed at the end and
-  retryable, and the app stays usable while it runs.
-
 - [ ] **Tag several loops at once**
   Goal: select many loops in the Library and add or remove a tag on all of them.
   Why: tagging is the real work; the queue helps one at a time only.
@@ -86,6 +80,8 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Done
 
+- [x] Bulk upload: three files move at once in a background queue, with per-file
+      progress, failures collected at the end, and one-tap retry.
 - [x] Remove a loop: type its file name to confirm, then it goes from Dropbox
       and the library. Packs that hold it keep their own copies.
 - [x] Profile picture editor: choose, zoom, drag inside the circle, or remove.

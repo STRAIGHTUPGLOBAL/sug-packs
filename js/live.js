@@ -244,42 +244,81 @@ function durationOf(file) {
   });
 }
 
+// Dropbox upload links accept the file directly. XHR is intentional here: fetch
+// cannot expose upload progress, while a large queue needs honest per-file bars.
+function uploadFile(url, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", url);
+    request.setRequestHeader("Content-Type", "application/octet-stream");
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(event.loaded / event.total);
+    };
+    request.onload = () => request.status >= 200 && request.status < 300
+      ? resolve()
+      : reject(new Error(`Dropbox refused ${file.name}`));
+    request.onerror = () => reject(new Error(`Couldn't upload ${file.name}`));
+    request.send(file);
+  });
+}
+
 // Uploads go from the browser straight into Dropbox (/Library), then get a row.
-// A file whose name is already in the library is skipped: one loop, one entry.
+// Three workers keep a large drop moving without swamping a phone or Dropbox.
+// Progress events are self-contained so the UI can outlive the Library screen.
 export async function addFiles(files, onProgress = () => {}) {
   const added = [];
   added.skipped = [];
-  let done = 0;
-  for (const file of files) {
-    if (loops.some((l) => l.file.toLowerCase() === file.name.toLowerCase())) {
+  added.failed = [];
+  const emit = (update) => { try { onProgress(update); } catch { /* UI moved on */ } };
+  const known = new Set(loops.map((loop) => loop.file.toLowerCase()));
+  const pending = [];
+
+  files.forEach((file, index) => {
+    const key = file.name.toLowerCase();
+    if (known.has(key)) {
       added.skipped.push(file.name);
-      onProgress(++done, files.length);
-      continue;
+      emit({ file, index, status: "skipped", progress: 1 });
+      return;
     }
-    try {
-      // The link comes with the path it will land on; the upload only confirms.
-      const { url, path, name } = await server("upload_link", { name: file.name });
-      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
-      if (!res.ok) throw new Error(`Dropbox refused ${file.name}`);
-      const parsed = parseName(name);
-      const row = check(await sb.from("loops").insert({
-        file: name,
-        dropbox_path: path,
-        title: parsed.title,
-        bpm: parsed.bpm,
-        key: parsed.key,
-        collabs: parsed.collabs,
-        duration: await durationOf(file),
-      }).select().single());
-      const loop = fromLoop(row);
-      loop.addedBy = me?.name ?? loop.addedBy;
-      loops.unshift(loop);
-      added.push(loop);
-    } catch (error) {
-      report(error);
+    known.add(key);
+    pending.push({ file, index });
+    emit({ file, index, status: "waiting", progress: 0 });
+  });
+
+  let next = 0;
+  async function worker() {
+    while (next < pending.length) {
+      const { file, index } = pending[next++];
+      try {
+        emit({ file, index, status: "uploading", progress: 0 });
+        // The link comes with the path it will land on; the upload only confirms.
+        const { url, path, name } = await server("upload_link", { name: file.name });
+        await uploadFile(url, file, (progress) => emit({ file, index, status: "uploading", progress }));
+        emit({ file, index, status: "saving", progress: 1 });
+        const parsed = parseName(name);
+        const row = check(await sb.from("loops").insert({
+          file: name,
+          dropbox_path: path,
+          title: parsed.title,
+          bpm: parsed.bpm,
+          key: parsed.key,
+          collabs: parsed.collabs,
+          duration: await durationOf(file),
+        }).select().single());
+        const loop = fromLoop(row);
+        loop.addedBy = me?.name ?? loop.addedBy;
+        loops.unshift(loop);
+        added.push(loop);
+        emit({ file, index, status: "done", progress: 1, loop });
+      } catch (error) {
+        const failure = { file, error: error instanceof Error ? error : new Error(String(error)) };
+        added.failed.push(failure);
+        emit({ file, index, status: "failed", progress: 0, error: failure.error });
+      }
     }
-    onProgress(++done, files.length);
   }
+
+  await Promise.all(Array.from({ length: Math.min(3, pending.length) }, worker));
   return added;
 }
 

@@ -35,6 +35,7 @@ js/data.js            picks live.js or store.js and re-exports the same names
 js/live.js            Supabase + Dropbox implementation
 js/store.js           demo implementation (localStorage + IndexedDB)
 js/player.js          one shared audio element
+js/uploads.js         background upload queue, progress sheet, retries
 js/names.js           parse title/BPM/key/handles; cleaned pack file names
 js/tags.js            tag groups, starter vocabulary, look-alike check, match rule
 js/cover.js           name → gradient cover art
@@ -63,6 +64,12 @@ Everything is loaded into memory once (`init`) and read synchronously; writes
 update memory immediately and save in the background. `deletePack` and
 `renamePack` are the exceptions: they re-read everything, because a background
 refresh that started mid-delete used to bring the pack back.
+
+Uploads are the other long-running exception. `uploads.js` owns an in-memory
+queue outside any screen, so changing tabs cannot cancel it or leave a stale DOM
+callback behind. `addFiles` runs three files at a time and reports each file's
+state and byte progress; the queue retains failed `File` objects for retry until
+the next finished batch replaces it or the page is reloaded.
 
 `?demo` in the address, or an empty `SUPABASE_URL`, runs the demo instead.
 

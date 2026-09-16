@@ -511,6 +511,36 @@ button.thumb:active { transform: scale(0.92); transition-duration: 80ms; }
 .row.is-placed .row-title { color: var(--text-2); }
 .row.is-placed .thumb { opacity: 0.55; }
 
+/* Upload queue: one calm summary in the Library, details in a sheet. */
+.upload-summary { margin-top: 20px; }
+.upload-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--surface-strong);
+  color: var(--text-2);
+}
+.upload-mark .icon { width: 19px; height: 19px; }
+.upload-mark.is-working { color: var(--accent-hover); }
+.upload-mark.is-working .icon { animation: upload-breathe 1.4s ease-in-out infinite alternate; }
+.upload-mark.is-done { background: rgba(89, 211, 155, 0.15); color: var(--green); }
+.upload-mark.is-failed { background: rgba(255, 122, 122, 0.14); color: var(--rose); }
+.upload-progress {
+  display: block;
+  height: 3px;
+  margin-top: 7px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--surface-strong);
+}
+.upload-progress i { display: block; height: 100%; border-radius: inherit; background: var(--accent-hover); transition: width 160ms linear; }
+.upload-list .upload-row { min-height: 68px; }
+.upload-list .row-title, .upload-list .row-sub { display: block; }
+@keyframes upload-breathe { to { transform: translateY(-2px); } }
+
 /* Picking a profile picture */
 .picture { display: grid; justify-items: center; gap: 16px; padding: 8px 0 20px; }
 .picture-frame {

@@ -122,21 +122,53 @@ export async function audioUrl(loop) {
   return url;
 }
 
-// Uploads: read tempo from the name, draw a waveform in the browser.
+// Uploads: read tempo from the name, draw a waveform in the browser. Demo mode
+// mirrors the live queue contract even though all of its work stays local.
 export async function addFiles(files, onProgress = () => {}) {
   const added = [];
-  let done = 0;
-  for (const file of files) {
-    const id = uid();
-    const { duration, peaks } = await analyse(file).catch(() => ({ duration: 0, peaks: [] }));
-    await idbPut(id, file).catch(() => {});
-    uploadUrls.set(id, URL.createObjectURL(file));
-    const loop = { id, by: state.user, file: file.name, ...parseName(file.name), tags: [], duration, peaks, uploaded: true, addedBy: state.user, addedAt: Date.now() };
-    state.loops.push(loop);
-    added.push(loop);
-    onProgress(++done, files.length);
+  added.skipped = [];
+  added.failed = [];
+  const emit = (update) => { try { onProgress(update); } catch { /* UI moved on */ } };
+  const known = new Set(state.loops.map((loop) => loop.file.toLowerCase()));
+  const pending = [];
+
+  files.forEach((file, index) => {
+    const key = file.name.toLowerCase();
+    if (known.has(key)) {
+      added.skipped.push(file.name);
+      emit({ file, index, status: "skipped", progress: 1 });
+      return;
+    }
+    known.add(key);
+    pending.push({ file, index });
+    emit({ file, index, status: "waiting", progress: 0 });
+  });
+
+  let next = 0;
+  async function worker() {
+    while (next < pending.length) {
+      const { file, index } = pending[next++];
+      try {
+        emit({ file, index, status: "uploading", progress: 0.08 });
+        const id = uid();
+        const { duration, peaks } = await analyse(file).catch(() => ({ duration: 0, peaks: [] }));
+        emit({ file, index, status: "saving", progress: 0.9 });
+        await idbPut(id, file);
+        uploadUrls.set(id, URL.createObjectURL(file));
+        const loop = { id, by: state.user, file: file.name, ...parseName(file.name), tags: [], duration, peaks, uploaded: true, addedBy: state.user, addedAt: Date.now() };
+        state.loops.push(loop);
+        added.push(loop);
+        save();
+        emit({ file, index, status: "done", progress: 1, loop });
+      } catch (error) {
+        const failure = { file, error: error instanceof Error ? error : new Error(String(error)) };
+        added.failed.push(failure);
+        emit({ file, index, status: "failed", progress: 0, error: failure.error });
+      }
+    }
   }
-  save();
+
+  await Promise.all(Array.from({ length: Math.min(3, pending.length) }, worker));
   return added;
 }
 
