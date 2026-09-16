@@ -287,6 +287,8 @@ a { color: inherit; text-decoration: none; }
 }
 .list + .list { margin-top: 24px; }
 .list--spaced { margin: 20px 0; }
+/* Results under a search row keep the same 20px as every other block. */
+[data-results] > .list:first-child, [data-results] > .empty:first-child { margin-top: 20px; }
 .list-label { margin: 28px 4px 10px; color: var(--text-3); font-size: 14px; font-weight: 500; }
 
 .row {
