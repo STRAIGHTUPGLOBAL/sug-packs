@@ -19,18 +19,6 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Now
 
-- [ ] **Bring the old packs into the stash** — **Needs Razz**
-  Goal: the ~100 finished packs in his Dropbox (`straightupglobal (PACKS)`) are
-  searchable here instead of only in Dropbox.
-  Why: "we get asked so many times for samples and have packs already done
-  somewhere, we just need to be able to find them."
-  Open questions for him: copy them into the app folder (safe, uses space) or
-  reference them where they are (needs full-Dropbox access instead of an app
-  folder, which is a bigger permission)? Do the loops inside need to become
-  library loops too, or is a searchable pack with its file list enough?
-  Done when: those packs appear in Packs, searchable by name and by the loops
-  inside, with a working link.
-
 - [ ] **Bulk upload**
   Goal: drop 50 files onto the Library and walk away.
   Now: files upload one after another and the whole screen waits.
@@ -69,6 +57,14 @@ Keep entries short: goal, why, and how you will know it works.
 - [ ] A third login with limited rights (look but not delete).
 - [ ] Tag suggestions from the file name ("Pain Guitar" in a name proposes tags).
 - [ ] Per-person tag vocabulary stats: which tags are actually used.
+
+## Decided against
+
+- **Importing the old Dropbox packs** (16 Sep 2026). Razz: "I don't want any
+  packs from the stash to get into this app... I want to start this fresh and
+  clean." The stash fills up with packs made here. Don't propose it again.
+- **Importing the old type folders** (15 Sep 2026). Their tags are unreliable,
+  and clean data is the whole point of the app.
 
 ## Done
 
