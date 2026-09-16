@@ -121,6 +121,9 @@ a { color: inherit; text-decoration: none; }
 }
 .header-title { font-size: 28px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
 .header-logo { display: block; width: 140px; height: auto; }
+/* Pages without the logotype carry the small mark instead. */
+.header-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.header-mark { display: block; width: 30px; height: auto; }
 .header-back { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .header-back .header-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 

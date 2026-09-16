@@ -298,7 +298,7 @@ function renderBuild() {
 function renderLibrary() {
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("library", '<h1 class="header-title">Library</h1>')}
+      ${header("library", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="143" height="128"><h1 class="header-title">Library</h1></div>')}
       <div class="search-row">
         <label class="search">${icon("search")}<input type="search" data-lib-query placeholder="Search" value="${esc(libraryQuery)}" autocomplete="off"></label>
         <label class="icon-button icon-button--glass" aria-label="Upload" title="Upload">${icon("plus")}<input type="file" accept="audio/*,.mp3,.wav" multiple hidden data-upload></label>
@@ -530,7 +530,7 @@ function renderPacks() {
   const packs = store.listPacks();
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("packs", '<h1 class="header-title">Packs</h1>')}
+      ${header("packs", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="143" height="128"><h1 class="header-title">Packs</h1></div>')}
       ${packs.length ? `<ul class="list stagger">${packs.map((pack, i) => `
         <li class="row row--media row--tap" data-pack="${pack.id}" style="--i:${i}">
           <span class="thumb" style="${coverStyle(pack.name)}"></span>
