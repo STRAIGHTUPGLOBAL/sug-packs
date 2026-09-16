@@ -12,5 +12,7 @@ export const {
   users, currentUser, setUser, setName,
   listTags, tagsById, addTag, tagUseCount,
   listLoops, getLoop, untagged, updateLoop, audioUrl, warm, addFiles,
-  listPacks, createPack, deletePack,
+  listPacks, createPack, deletePack, renamePack,
+  myId, profileOf, people, setAvatar,
+  isFavorite, favoriteCount, favoritesOf, toggleFavorite, notePackUse,
 } = impl;

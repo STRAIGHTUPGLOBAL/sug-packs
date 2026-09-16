@@ -44,12 +44,14 @@ async function seed() {
     duration: peaks[demo.file]?.duration || 0,
     peaks: peaks[demo.file]?.peaks || [],
     src: DEMO_AUDIO + encodeURIComponent(demo.file),
+    by: i % 3 ? "Razz" : "12",
     addedBy: i % 3 ? "Razz" : "12",
     addedAt: now - (i + 1) * DAY / 3,
   }));
   const byFile = new Map(loops.map((l) => [l.file, l.id]));
   const packs = DEMO_PACKS.map((p) => ({
     id: uid(),
+    by: p.createdBy,
     name: p.name,
     loopIds: p.files.map((f) => byFile.get(f)),
     removeSug: p.removeSug,
@@ -58,7 +60,7 @@ async function seed() {
     createdBy: p.createdBy,
     createdAt: now - p.daysAgo * DAY,
   }));
-  return { user: "Razz", tags, loops, packs };
+  return { user: "Razz", tags, loops, packs, favorites: [], avatars: {} };
 }
 
 export async function init() {
@@ -128,7 +130,7 @@ export async function addFiles(files, onProgress = () => {}) {
     const { duration, peaks } = await analyse(file).catch(() => ({ duration: 0, peaks: [] }));
     await idbPut(id, file).catch(() => {});
     uploadUrls.set(id, URL.createObjectURL(file));
-    const loop = { id, file: file.name, ...parseName(file.name), tags: [], duration, peaks, uploaded: true, addedBy: state.user, addedAt: Date.now() };
+    const loop = { id, by: state.user, file: file.name, ...parseName(file.name), tags: [], duration, peaks, uploaded: true, addedBy: state.user, addedAt: Date.now() };
     state.loops.push(loop);
     added.push(loop);
     onProgress(++done, files.length);
@@ -167,6 +169,7 @@ export async function createPack({ name, loopIds, removeSug, removeCollabs }, on
   }
   const pack = {
     id: uid(),
+    by: state.user,
     name,
     loopIds,
     removeSug,
@@ -180,8 +183,52 @@ export async function createPack({ name, loopIds, removeSug, removeCollabs }, on
   return pack;
 }
 
-export function deletePack(id) {
+export async function deletePack(id) {
   state.packs = state.packs.filter((p) => p.id !== id);
+  state.favorites = (state.favorites ?? []).filter((f) => f !== id);
+  save();
+}
+
+export async function renamePack(id, name) {
+  const pack = state.packs.find((p) => p.id === id);
+  if (pack) pack.name = name;
+  save();
+  return pack;
+}
+
+/* People, favourites and usage (demo) ------------------------------------------ */
+
+export const myId = () => state.user;
+export const profileOf = (id) => ({ id, name: id, avatar: state.avatars?.[id] ?? "" });
+export const people = () => USERS.map((name) => ({
+  id: name,
+  name,
+  avatar: state.avatars?.[name] ?? "",
+  since: state.loops.at(-1)?.addedAt ?? Date.now(),
+  packs: state.packs.filter((p) => p.createdBy === name).length,
+  loops: state.loops.filter((l) => l.addedBy === name).length,
+  uses: state.packs.filter((p) => p.createdBy === name).reduce((sum, p) => sum + (p.uses ?? 0), 0),
+}));
+
+export async function setAvatar(avatar) {
+  state.avatars = { ...(state.avatars ?? {}), [state.user]: avatar ?? "" };
+  save();
+}
+
+export const isFavorite = (packId, user = state.user) => (state.favorites ?? []).includes(packId) && user === state.user;
+export const favoriteCount = (packId) => ((state.favorites ?? []).includes(packId) ? 1 : 0);
+export const favoritesOf = (user) => (user === state.user ? state.packs.filter((p) => (state.favorites ?? []).includes(p.id)) : []);
+
+export async function toggleFavorite(packId) {
+  const list = state.favorites ?? [];
+  state.favorites = list.includes(packId) ? list.filter((f) => f !== packId) : [...list, packId];
+  save();
+  return state.favorites.includes(packId);
+}
+
+export async function notePackUse(packId) {
+  const pack = state.packs.find((p) => p.id === packId);
+  if (pack) { pack.uses = (pack.uses ?? 0) + 1; pack.lastUsedAt = Date.now(); }
   save();
 }
 

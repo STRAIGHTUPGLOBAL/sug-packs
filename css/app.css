@@ -406,6 +406,65 @@ button.thumb:active { transform: scale(0.92); transition-duration: 80ms; }
 .signin-form .list + .button { margin-top: 4px; }
 .signin-error { color: var(--rose); font-size: 15px; text-align: center; }
 
+/* Filters and sorting on the pack stash */
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.filters .chip .icon { width: 15px; height: 15px; }
+.chip--sort { margin-left: auto; color: var(--text-2); }
+.chip--sort .icon { color: var(--text-3); }
+
+/* Favourite star */
+.star { color: var(--text-3); }
+.star .icon { transition: transform 260ms var(--spring); }
+.star:hover { color: var(--text-2); }
+.star.is-on { color: var(--accent-hover); }
+.star.is-on .icon { fill: var(--accent-hover); }
+.star.pop .icon { animation: chip-pop 400ms var(--spring); }
+.row-star { color: var(--text-3); }
+.row-star.is-on { color: var(--accent-hover); fill: var(--accent-hover); }
+
+/* People */
+.avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: linear-gradient(150deg, var(--accent), #2B3AC4);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar--xl { width: 104px; height: 104px; font-size: 38px; cursor: pointer; }
+.avatar-edit {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--bg);
+  border-radius: 50%;
+  background: var(--surface-strong);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+}
+.avatar-edit .icon { width: 16px; height: 16px; }
+
+/* Profile */
+.profile { display: grid; justify-items: center; gap: 14px; padding: 8px 0 28px; text-align: center; }
+.profile-name { font-size: 26px; font-weight: 600; letter-spacing: -0.03em; }
+.stats { display: flex; gap: 28px; }
+.stat { display: grid; gap: 2px; }
+.stat b { font-size: 20px; font-weight: 600; }
+.stat span { color: var(--text-3); font-size: 14px; }
+
 /* Empty states */
 .empty { padding: 64px 16px; text-align: center; color: var(--text-3); }
 .empty .button { margin-top: 16px; }

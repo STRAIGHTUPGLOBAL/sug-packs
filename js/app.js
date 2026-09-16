@@ -43,8 +43,9 @@ async function route() {
   if (!document.querySelector("[data-sheet]").hidden) closeSheet();
   if (page !== "pack") player.stop();
 
-  const fromTab = TAB_IDS.includes(lastPage);
-  const toTab = TAB_IDS.includes(page);
+  const asTab = (name) => (name === "u" ? "packs" : name);
+  const fromTab = TAB_IDS.includes(asTab(lastPage));
+  const toTab = TAB_IDS.includes(asTab(page));
   if (lastPage !== null && view.firstElementChild) {
     view.classList.add("is-leaving");
     view.classList.toggle("is-leaving-all", !(fromTab && toTab));
@@ -55,13 +56,14 @@ async function route() {
   window.scrollTo(0, 0);
 
   keepHeader = fromTab && toTab;
-  navFrom = fromTab ? TAB_IDS.indexOf(lastPage) : Math.max(0, TAB_IDS.indexOf(page));
+  navFrom = fromTab ? TAB_IDS.indexOf(asTab(lastPage)) : Math.max(0, TAB_IDS.indexOf(asTab(page)));
   lastPage = page;
 
   if (page === "swipe") cleanup = swipe.renderSwipe(view, go);
   else if (page === "pack") cleanup = swipe.renderPack(view, go);
   else if (page === "library") cleanup = renderLibrary();
   else if (page === "packs") cleanup = renderPacks();
+  else if (page === "u") cleanup = renderProfile(decodeURIComponent(location.hash.split("/")[2] ?? ""));
   else cleanup = renderBuild();
   settleNav();
 }
@@ -298,7 +300,7 @@ function renderBuild() {
 function renderLibrary() {
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("library", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="143" height="128"><h1 class="header-title">Library</h1></div>')}
+      ${header("library", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="256"><h1 class="header-title">Library</h1></div>')}
       <div class="search-row">
         <label class="search">${icon("search")}<input type="search" data-lib-query placeholder="Search" value="${esc(libraryQuery)}" autocomplete="off"></label>
         <label class="icon-button icon-button--glass" aria-label="Upload" title="Upload">${icon("plus")}<input type="file" accept="audio/*,.mp3,.wav" multiple hidden data-upload></label>
@@ -524,141 +526,340 @@ function openTagger(ids, index = 0, onDone = () => {}) {
   player.play(loop);
 }
 
-/* Packs ------------------------------------------------------------------------ */
+/* Packs: the stash ------------------------------------------------------------- */
 
-function renderPacks() {
-  const packs = store.listPacks();
-  view.innerHTML = `
-    <section class="${pageClass()}">
-      ${header("packs", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="143" height="128"><h1 class="header-title">Packs</h1></div>')}
-      ${packs.length ? `<ul class="list stagger">${packs.map((pack, i) => `
-        <li class="row row--media row--tap" data-pack="${pack.id}" style="--i:${i}">
-          <span class="thumb" style="${coverStyle(pack.name)}"></span>
-          <div class="row-main">
-            <div class="row-title">${esc(pack.name)}</div>
-            <div class="row-sub">${plural(pack.loopIds.length, "loop")} · ${esc(pack.createdBy)} · ${ago(pack.createdAt)}</div>
-          </div>
-          <button class="icon-button" type="button" data-copy="${pack.id}" aria-label="Copy link" title="Copy link">${icon("link")}</button>
-        </li>`).join("")}</ul>` : '<p class="empty">No packs yet.</p>'}
-      <div>
-        <p class="list-label">Account</p>
-        <div class="list">
-          <button class="row" type="button" data-account>
-            <span class="row-main">${esc(store.currentUser())}</span>
-            ${icon("chevron", "row-chevron")}
-          </button>
-        </div>
-      </div>
-    </section>`;
+let packFilter = "all";
+let packSort = "recent";
+let packQuery = "";
 
-  const copy = async (pack) => {
-    if (!pack.link) return toast("This pack has no link");
-    await copyText(pack.link);
-    toast("Link copied");
-  };
+const SORTS = { recent: "Recent", used: "Most sent", name: "A–Z" };
 
-  const onClick = (event) => {
-    const copyButton = event.target.closest("[data-copy]");
-    if (copyButton) return copy(packs.find((p) => p.id === copyButton.dataset.copy));
-    if (event.target.closest("[data-account]")) return openAccount();
-    const row = event.target.closest("[data-pack]");
-    if (!row) return;
-    const pack = packs.find((p) => p.id === row.dataset.pack);
-    const sheet = openSheet(`
-      <div class="sheet-head">
-        <span class="thumb thumb--lg" style="${coverStyle(pack.name)}"></span>
-        <div class="row-main">
-          <h2 class="sheet-title">${esc(pack.name)}</h2>
-          <p class="sheet-sub">${plural(pack.loopIds.length, "loop")} · ${esc(pack.createdBy)} · ${ago(pack.createdAt)}</p>
-        </div>
-        <button class="icon-button" type="button" data-sheet-close aria-label="Close">${icon("x")}</button>
-      </div>
-      <div class="sheet-body">
-        <ul class="list">${pack.loopIds.map((id) => store.getLoop(id)).filter(Boolean).map((loop) => `
-          <li class="row row--media">
-            <span class="thumb thumb--sm" style="${coverStyle(loop.file)}"></span>
-            <div class="row-main"><div class="row-title">${esc(packName(loop.file, pack))}</div></div>
-          </li>`).join("")}
-        </ul>
-      </div>
-      <div class="sheet-foot"><button class="button button--primary" type="button" data-sheet-copy>${icon("link")} Copy link</button></div>`);
-    sheet.querySelector("[data-sheet-copy]").addEventListener("click", () => copy(pack));
-  };
-  view.addEventListener("click", onClick);
-  return () => view.removeEventListener("click", onClick);
+// A short name like "12" stays whole; longer ones show their first letter.
+const initials = (name = "") => {
+  const clean = String(name).trim();
+  return (clean.length <= 2 ? clean : clean[0]).toUpperCase() || "?";
+};
+
+const avatarHtml = (person, cls = "") => `<span class="avatar ${cls}">${person?.avatar
+  ? `<img src="${esc(person.avatar)}" alt="">`
+  : esc(initials(person?.name))}</span>`;
+
+const packSub = (pack) => [
+  plural(pack.loopIds.length, "loop"),
+  esc(pack.createdBy),
+  ago(pack.createdAt),
+  pack.uses ? `sent ${pack.uses}×` : "",
+].filter(Boolean).join(" · ");
+
+const packRow = (pack, i) => `
+  <li class="row row--media row--tap" data-pack="${pack.id}" style="--i:${i}">
+    <span class="thumb" style="${coverStyle(pack.name)}"></span>
+    <div class="row-main">
+      <div class="row-title">${esc(pack.name)}</div>
+      <div class="row-sub">${packSub(pack)}</div>
+    </div>
+    <button class="icon-button star ${store.isFavorite(pack.id) ? "is-on" : ""}" type="button" data-fav="${pack.id}" aria-label="Favourite">${icon("star")}</button>
+  </li>`;
+
+function sortPacks(list) {
+  return [...list].sort((a, b) =>
+    packSort === "used" ? b.uses - a.uses || b.lastUsedAt - a.lastUsedAt
+      : packSort === "name" ? a.name.localeCompare(b.name)
+        : b.createdAt - a.createdAt);
 }
 
-function openAccount() {
-  if (store.live) {
-    const sheet = openSheet(`
-      <div class="sheet-head">
-        <div class="row-main"><h2 class="sheet-title">${esc(store.currentUser())}</h2><p class="sheet-sub">Signed in on this device</p></div>
-        <button class="icon-button" type="button" data-sheet-close aria-label="Close">${icon("x")}</button>
+// Search finds a pack by its own name or by a loop inside it, for
+// "which pack had that guitar thing in it?".
+function matchesQuery(pack, q) {
+  if (!q) return true;
+  if (pack.name.toLowerCase().includes(q)) return true;
+  return pack.loopIds.some((id) => store.getLoop(id)?.file.toLowerCase().includes(q));
+}
+
+function renderPacks() {
+  view.innerHTML = `
+    <section class="${pageClass()}">
+      ${header("packs", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="256"><h1 class="header-title">Packs</h1></div>')}
+      <div class="search-row">
+        <label class="search">${icon("search")}<input type="search" data-pack-query placeholder="Search packs and loops" value="${esc(packQuery)}" autocomplete="off"></label>
       </div>
-      <div class="sheet-body">
-        <div class="list">
-          <div class="row"><div class="row-main row-field"><label for="account-name">Name on loops and packs</label><input id="account-name" data-name value="${esc(store.currentUser())}" autocomplete="off"></div></div>
+      <div class="filters">
+        <button class="chip" type="button" data-filter="all">All</button>
+        <button class="chip" type="button" data-filter="mine">Mine</button>
+        <button class="chip" type="button" data-filter="fav">${icon("star")} Favourites</button>
+        <button class="chip chip--sort" type="button" data-sort>${icon("sort")} <span data-sort-label></span></button>
+      </div>
+      <div data-list></div>
+      <p class="list-label">People</p>
+      <div class="list" data-people></div>
+    </section>`;
+
+  const listEl = view.querySelector("[data-list]");
+  let first = true;
+
+  function paint() {
+    if (currentPage() !== "packs") return;
+    const q = packQuery.trim().toLowerCase();
+    const all = store.listPacks();
+    const mine = store.myId();
+    const shown = sortPacks(all.filter((pack) => matchesQuery(pack, q)
+      && (packFilter === "all" || (packFilter === "mine" ? pack.by === mine : store.isFavorite(pack.id)))));
+
+    view.querySelectorAll("[data-filter]").forEach((chip) => chip.classList.toggle("is-on", chip.dataset.filter === packFilter));
+    view.querySelector("[data-sort-label]").textContent = SORTS[packSort];
+
+    listEl.innerHTML = shown.length
+      ? `<ul class="list ${first ? "stagger" : ""}">${shown.map(packRow).join("")}</ul>`
+      : `<p class="empty">${q ? "Nothing found." : packFilter === "fav" ? "No favourites yet. Tap a star." : "No packs yet."}</p>`;
+
+    view.querySelector("[data-people]").innerHTML = store.people().map((person) => `
+      <a class="row row--media" href="#/u/${encodeURIComponent(person.id)}">
+        ${avatarHtml(person)}
+        <div class="row-main">
+          <div class="row-title">${esc(person.name)}${person.id === mine ? " · you" : ""}</div>
+          <div class="row-sub">${plural(person.packs, "pack")} · ${plural(person.loops, "loop")}</div>
         </div>
-        <div class="list">
-          <button class="row" type="button" data-signout><span class="row-main row-danger">Sign out</span></button>
-        </div>
-      </div>`);
-    const nameInput = sheet.querySelector("[data-name]");
-    nameInput.addEventListener("change", async () => {
-      const value = nameInput.value.trim();
-      if (!value || value === store.currentUser()) return;
-      try {
-        await store.setName(value);
-        toast("Name saved");
-        if (currentPage() === "packs") route();
-      } catch (error) {
-        toast(error.message || "Couldn't save the name");
-      }
-    });
-    sheet.querySelector("[data-signout]").addEventListener("click", async () => {
-      await store.signOut();
-      signedIn = false;
-      swipe.endSession();
-      selected.clear();
-      closeSheet();
-      renderSignIn();
-    });
-    return;
+        ${icon("chevron", "row-chevron")}
+      </a>`).join("");
+    first = false;
   }
+
+  const onClick = async (event) => {
+    const fav = event.target.closest("[data-fav]");
+    if (fav) {
+      event.stopPropagation();
+      const on = await store.toggleFavorite(fav.dataset.fav);
+      fav.classList.toggle("is-on", on);
+      fav.classList.remove("pop");
+      void fav.offsetWidth;
+      fav.classList.add("pop");
+      if (packFilter === "fav") paint();
+      return;
+    }
+    const filter = event.target.closest("[data-filter]");
+    if (filter) { packFilter = filter.dataset.filter; return paint(); }
+    if (event.target.closest("[data-sort]")) {
+      const order = Object.keys(SORTS);
+      packSort = order[(order.indexOf(packSort) + 1) % order.length];
+      return paint();
+    }
+    const row = event.target.closest("[data-pack]");
+    if (row) openPackSheet(row.dataset.pack, paint);
+  };
+  const onInput = (event) => {
+    if (!event.target.matches("[data-pack-query]")) return;
+    packQuery = event.target.value;
+    paint();
+  };
+  view.addEventListener("click", onClick);
+  view.addEventListener("input", onInput);
+  paint();
+  return () => {
+    view.removeEventListener("click", onClick);
+    view.removeEventListener("input", onInput);
+  };
+}
+
+/* One pack: files, link, rename, delete ------------------------------------------ */
+
+function openPackSheet(packId, onChange = () => {}) {
+  const pack = store.listPacks().find((p) => p.id === packId);
+  if (!pack) return;
+  let confirming = false;
 
   const sheet = openSheet(`
     <div class="sheet-head">
-      <div class="row-main"><h2 class="sheet-title">Account</h2><p class="sheet-sub">Demo · data stays in this browser</p></div>
+      <span class="thumb thumb--lg" style="${coverStyle(pack.name)}"></span>
+      <div class="row-main">
+        <h2 class="sheet-title">${esc(pack.name)}</h2>
+        <p class="sheet-sub">${packSub(pack)}${pack.lastUsedAt ? ` · last ${ago(pack.lastUsedAt)}` : ""}</p>
+      </div>
       <button class="icon-button" type="button" data-sheet-close aria-label="Close">${icon("x")}</button>
     </div>
     <div class="sheet-body">
       <div class="list">
-        ${store.users().map((u) => `
-          <button class="row" type="button" data-user="${u}">
-            <span class="row-main">${esc(u)}</span>
-            ${u === store.currentUser() ? icon("check", "row-check") : ""}
-          </button>`).join("")}
+        <div class="row"><div class="row-main row-field"><label for="pack-rename">Name</label><input id="pack-rename" data-rename value="${esc(pack.name)}" autocomplete="off"></div></div>
+        <button class="row" type="button" data-fav-row>
+          <span class="row-main">${store.isFavorite(pack.id) ? "Remove from favourites" : "Add to favourites"}</span>
+          ${icon("star", store.isFavorite(pack.id) ? "row-star is-on" : "row-star")}
+        </button>
       </div>
+      <p class="list-label">Files</p>
+      <ul class="list">${pack.loopIds.map((id) => store.getLoop(id)).filter(Boolean).map((loop) => `
+        <li class="row row--media">
+          <span class="thumb thumb--sm" style="${coverStyle(loop.file)}"></span>
+          <div class="row-main"><div class="row-title">${esc(packName(loop.file, pack))}</div></div>
+        </li>`).join("") || '<li class="row"><div class="row-main row-sub">Those loops are gone from the library.</div></li>'}
+      </ul>
       <div class="list">
-        <button class="row" type="button" data-reset><span class="row-main row-danger">Reset demo</span></button>
+        <button class="row" type="button" data-delete><span class="row-main row-danger" data-delete-label>Delete pack</span></button>
       </div>
-    </div>`);
-  sheet.addEventListener("click", async (event) => {
-    const user = event.target.closest("[data-user]");
-    if (user) {
-      store.setUser(user.dataset.user);
-      closeSheet();
-      return route();
-    }
-    if (event.target.closest("[data-reset]")) {
-      await store.reset();
-      swipe.endSession();
-      selected.clear();
-      closeSheet();
-      toast("Demo reset");
-      go("#/build");
+    </div>
+    <div class="sheet-foot">
+      <button class="button" type="button" data-open>${icon("open")} Open</button>
+      <button class="button button--primary" type="button" data-copy>${icon("link")} Copy link</button>
+    </div>`, { onClose: onChange });
+
+  const rename = sheet.querySelector("[data-rename]");
+  rename.addEventListener("change", async () => {
+    const name = rename.value.trim();
+    if (!name || name === pack.name) return;
+    try {
+      const fresh = await store.renamePack(pack.id, name);
+      sheet.querySelector(".sheet-title").textContent = fresh?.name ?? name;
+      toast("Renamed");
+      onChange();
+    } catch (error) {
+      rename.value = pack.name;
+      toast(error.message || "Couldn't rename it");
     }
   });
+
+  sheet.querySelector("[data-fav-row]").addEventListener("click", async (event) => {
+    const on = await store.toggleFavorite(pack.id);
+    event.currentTarget.querySelector(".row-main").textContent = on ? "Remove from favourites" : "Add to favourites";
+    event.currentTarget.querySelector(".row-star").classList.toggle("is-on", on);
+    onChange();
+  });
+
+  sheet.querySelector("[data-copy]").addEventListener("click", async () => {
+    if (!pack.link) return toast("This pack has no link");
+    await copyText(pack.link);
+    await store.notePackUse(pack.id);
+    toast("Link copied");
+    onChange();
+  });
+
+  sheet.querySelector("[data-open]").addEventListener("click", () => {
+    if (!pack.link) return toast("This pack has no link");
+    window.open(pack.link, "_blank", "noopener");
+  });
+
+  sheet.querySelector("[data-delete]").addEventListener("click", async (event) => {
+    const label = event.currentTarget.querySelector("[data-delete-label]");
+    if (!confirming) {
+      confirming = true;
+      label.textContent = "Tap again to delete this pack and its Dropbox folder";
+      setTimeout(() => { if (confirming) { confirming = false; label.textContent = "Delete pack"; } }, 4000);
+      return;
+    }
+    label.textContent = "Deleting…";
+    try {
+      await store.deletePack(pack.id);
+      closeSheet();
+      toast("Pack deleted");
+      onChange();
+    } catch (error) {
+      confirming = false;
+      label.textContent = "Delete pack";
+      toast(error.message || "Couldn't delete it");
+    }
+  });
+}
+
+/* Profile ------------------------------------------------------------------------ */
+
+// A square picture, small enough to keep in the database.
+async function squareImage(file, size = 320) {
+  const bitmap = await createImageBitmap(file);
+  const side = Math.min(bitmap.width, bitmap.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size);
+  bitmap.close?.();
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+
+function renderProfile(id) {
+  const person = store.people().find((p) => p.id === id) ?? store.profileOf(id);
+  if (!person) { go("#/packs"); return null; }
+  const own = id === store.myId();
+  const theirs = store.listPacks().filter((pack) => pack.by === id);
+  const pinned = store.favoritesOf(id);
+
+  view.innerHTML = `
+    <section class="${pageClass()}">
+      ${header("packs", `<div class="header-back"><a class="icon-button" href="#/packs" aria-label="Back">${icon("back")}</a><h1 class="header-title">${esc(person.name)}</h1></div>`)}
+      <div class="profile">
+        ${own ? `<button class="avatar avatar--xl" type="button" data-avatar aria-label="Change picture">${person.avatar ? `<img src="${esc(person.avatar)}" alt="">` : esc(initials(person.name))}<span class="avatar-edit">${icon("camera")}</span></button>
+        <input type="file" accept="image/*" hidden data-avatar-file>` : avatarHtml(person, "avatar--xl")}
+        <h2 class="profile-name">${esc(person.name)}</h2>
+        <div class="stats">
+          <div class="stat"><b>${person.packs ?? theirs.length}</b><span>packs</span></div>
+          <div class="stat"><b>${person.loops ?? 0}</b><span>loops</span></div>
+          <div class="stat"><b>${person.uses ?? 0}</b><span>sent</span></div>
+        </div>
+      </div>
+      ${pinned.length ? `<p class="list-label">${own ? "Your favourites" : "Favourites"}</p><ul class="list">${sortPacks(pinned).map(packRow).join("")}</ul>` : ""}
+      <p class="list-label">${own ? "Your packs" : "Packs"}</p>
+      ${theirs.length ? `<ul class="list">${sortPacks(theirs).map(packRow).join("")}</ul>` : '<p class="empty">No packs yet.</p>'}
+      ${own ? `
+        <p class="list-label">Account</p>
+        <div class="list">
+          <div class="row"><div class="row-main row-field"><label for="profile-name">Name on loops and packs</label><input id="profile-name" data-name value="${esc(person.name)}" autocomplete="off"></div></div>
+          ${person.avatar ? '<button class="row" type="button" data-avatar-clear><span class="row-main">Remove picture</span></button>' : ""}
+          <button class="row" type="button" data-signout><span class="row-main row-danger">Sign out</span></button>
+        </div>` : ""}
+    </section>`;
+
+  const refresh = () => renderProfile(id);
+
+  const onClick = async (event) => {
+    const fav = event.target.closest("[data-fav]");
+    if (fav) {
+      event.stopPropagation();
+      await store.toggleFavorite(fav.dataset.fav);
+      return refresh();
+    }
+    const row = event.target.closest("[data-pack]");
+    if (row) return openPackSheet(row.dataset.pack, refresh);
+    if (event.target.closest("[data-avatar]")) return view.querySelector("[data-avatar-file]").click();
+    if (event.target.closest("[data-avatar-clear]")) {
+      await store.setAvatar(null);
+      toast("Picture removed");
+      return refresh();
+    }
+    if (event.target.closest("[data-signout]")) {
+      await store.signOut();
+      signedIn = false;
+      swipe.endSession();
+      selected.clear();
+      renderSignIn();
+    }
+  };
+  const onChange = async (event) => {
+    if (event.target.matches("[data-avatar-file]")) {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      try {
+        await store.setAvatar(await squareImage(file));
+        toast("Picture saved");
+        refresh();
+      } catch (error) {
+        toast(error.message || "Couldn't use that picture");
+      }
+      return;
+    }
+    if (event.target.matches("[data-name]")) {
+      const value = event.target.value.trim();
+      if (!value || value === person.name) return;
+      try {
+        await store.setName(value);
+        toast("Name saved");
+        refresh();
+      } catch (error) {
+        toast(error.message || "Couldn't save the name");
+      }
+    }
+  };
+  view.addEventListener("click", onClick);
+  view.addEventListener("change", onChange);
+  return () => {
+    view.removeEventListener("click", onClick);
+    view.removeEventListener("change", onChange);
+  };
 }
 
 /* Start: the logo holds until the app is ready, then hands over. --------------------- */

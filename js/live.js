@@ -24,6 +24,7 @@ let tags = [];
 let loops = [];
 let packs = [];
 let loadedAt = 0;
+let favorites = new Map(); // pack id → set of user ids
 const links = new Map(); // loop id → { url, expires }
 
 let report = (error) => console.error(error);
@@ -88,6 +89,7 @@ const nameOf = (id) => profiles.get(id)?.name ?? "";
 const fromTag = (row) => ({ id: row.id, group: row.grp, label: row.label });
 const fromLoop = (row) => ({
   id: row.id,
+  by: row.added_by,
   file: row.file,
   path: row.dropbox_path,
   title: row.title,
@@ -101,26 +103,37 @@ const fromLoop = (row) => ({
 });
 const fromPack = (row) => ({
   id: row.id,
+  by: row.created_by,
   name: row.name,
   loopIds: row.loop_ids ?? [],
   removeSug: row.remove_sug,
   removeCollabs: row.remove_collabs,
   link: row.link ?? "",
+  uses: row.uses ?? 0,
+  lastUsedAt: row.last_used_at ? Date.parse(row.last_used_at) : 0,
   createdBy: nameOf(row.created_by),
   createdAt: Date.parse(row.created_at),
 });
 
 export async function init() {
-  const [people, tagRows, loopRows, packRows] = await Promise.all([
-    fetchAll(() => sb.from("profiles").select("id, name").order("created_at")),
+  const [everyone, tagRows, loopRows, packRows, favRows] = await Promise.all([
+    fetchAll(() => sb.from("profiles").select("*").order("created_at")),
     fetchAll(() => sb.from("tags").select("id, grp, label").order("id")),
     fetchAll(() => sb.from("loops").select("*").order("added_at", { ascending: false })),
     fetchAll(() => sb.from("packs").select("*").order("created_at", { ascending: false })),
+    // Favourites arrive with database update 2; without it the app simply has none.
+    fetchAll(() => sb.from("pack_favorites").select("pack_id, user_id")).catch(() => []),
   ]);
-  profiles = new Map(people.map((p) => [p.id, p]));
+  profiles = new Map(everyone.map((p) => [p.id, { id: p.id, name: p.name, avatar: p.avatar ?? "", since: Date.parse(p.created_at) }]));
   tags = tagRows.map(fromTag);
   loops = loopRows.map(fromLoop);
   packs = packRows.map(fromPack);
+  favorites = new Map();
+  for (const row of favRows) {
+    if (!favorites.has(row.pack_id)) favorites.set(row.pack_id, new Set());
+    favorites.get(row.pack_id).add(row.user_id);
+  }
+  if (me) me.name = profiles.get(me.id)?.name ?? me.name;
   loadedAt = Date.now();
 }
 
@@ -275,4 +288,67 @@ export async function createPack({ name, loopIds, removeSug, removeCollabs }, on
   }
 }
 
-export function deletePack() { /* not offered yet */ }
+export async function deletePack(packId) {
+  await server("delete_pack", { packId });
+  packs = packs.filter((p) => p.id !== packId);
+  favorites.delete(packId);
+}
+
+export async function renamePack(packId, name) {
+  const { pack } = await server("rename_pack", { packId, name });
+  const fresh = fromPack(pack);
+  packs = packs.map((p) => (p.id === packId ? fresh : p));
+  return fresh;
+}
+
+/* People, favourites and usage ------------------------------------------------- */
+
+export const myId = () => me?.id ?? "";
+export const profileOf = (id) => profiles.get(id) ?? null;
+
+// Everyone, with what they have made: for the people list and profile pages.
+export const people = () => [...profiles.values()].map((person) => {
+  const theirs = packs.filter((p) => p.by === person.id);
+  return {
+    ...person,
+    packs: theirs.length,
+    loops: loops.filter((l) => l.by === person.id).length,
+    uses: theirs.reduce((sum, p) => sum + p.uses, 0),
+  };
+});
+
+export async function setAvatar(avatar) {
+  if (!me) return;
+  check(await sb.from("profiles").update({ avatar }).eq("id", me.id).select().single());
+  const mine = profiles.get(me.id);
+  if (mine) mine.avatar = avatar ?? "";
+}
+
+export const isFavorite = (packId, userId = me?.id) => favorites.get(packId)?.has(userId) ?? false;
+export const favoriteCount = (packId) => favorites.get(packId)?.size ?? 0;
+export const favoritesOf = (userId) => packs.filter((p) => favorites.get(p.id)?.has(userId));
+
+export async function toggleFavorite(packId) {
+  if (!me) return false;
+  const set = favorites.get(packId) ?? new Set();
+  favorites.set(packId, set);
+  const on = !set.has(me.id);
+  if (on) set.add(me.id); else set.delete(me.id);
+  const query = on
+    ? sb.from("pack_favorites").insert({ pack_id: packId, user_id: me.id })
+    : sb.from("pack_favorites").delete().eq("pack_id", packId).eq("user_id", me.id);
+  const { error } = await query;
+  if (error) {
+    if (on) set.delete(me.id); else set.add(me.id);
+    report(new Error(`Couldn't save that: ${error.message}`));
+  }
+  return set.has(me.id);
+}
+
+// Copying a pack's link counts as sending it out.
+export async function notePackUse(packId) {
+  const pack = packs.find((p) => p.id === packId);
+  if (pack) { pack.uses += 1; pack.lastUsedAt = Date.now(); }
+  const { error } = await sb.rpc("note_pack_use", { pack: packId });
+  if (error) report(new Error(`Couldn't count that: ${error.message}`));
+}
