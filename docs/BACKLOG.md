@@ -19,14 +19,6 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Now
 
-- [ ] **Tag several loops at once**
-  Goal: select many loops in the Library and add or remove a tag on all of them.
-  Why: tagging is the real work; the queue helps one at a time only.
-  Done when: long-press or a select mode, a tag sheet that applies to the
-  selection, and the count of what changed.
-
-
-
 - [ ] **Listen through a pack**
   Goal: open a pack and play it end to end, or shuffled, without leaving the app.
   Why: before sending a pack on, or when hunting for one loop inside it.
@@ -50,6 +42,8 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Soon
 
+- [ ] **Tag several loops at once** — select many Library loops, then add or
+  remove tags across the selection. Deferred for now by Razz (16 Sep).
 - [ ] **Edit a pack's contents** — add or remove loops after it was created
   (copies into or deletes from the Dropbox folder, updates the row).
 - [ ] **Notes on a pack** — who asked for it, what for. Shown in the stash and
@@ -80,6 +74,8 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Done
 
+- [x] Fast, correct playback: switching loops cancels the old request, and a
+      bounded background cache keeps recent / next audio on the device.
 - [x] Bulk upload: three files move at once in a background queue, with per-file
       progress, failures collected at the end, and one-tap retry.
 - [x] Remove a loop: type its file name to confirm, then it goes from Dropbox

@@ -116,6 +116,16 @@
 .card-play .icon { width: 28px; height: 28px; margin-left: 3px; fill: currentColor; stroke: none; }
 .card-hint { color: rgba(255, 255, 255, 0.85); font-size: 15px; font-weight: 500; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.4); transition: opacity 300ms ease; }
 .card.is-playing .card-play { opacity: 0; transform: scale(0.7); }
+.card.is-loading .card-play .icon { opacity: 0; }
+.card.is-loading .card-play::after {
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+  content: "";
+}
 .card:not(.is-locked) .card-hint { opacity: 0; }
 
 .card-info { position: absolute; z-index: 1; left: 0; right: 0; bottom: 0; padding: 24px 24px 14px; }

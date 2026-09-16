@@ -35,6 +35,7 @@ js/data.js            picks live.js or store.js and re-exports the same names
 js/live.js            Supabase + Dropbox implementation
 js/store.js           demo implementation (localStorage + IndexedDB)
 js/player.js          one shared audio element
+js/audio-cache.js     bounded persistent cache for likely-to-play loops
 js/uploads.js         background upload queue, progress sheet, retries
 js/names.js           parse title/BPM/key/handles; cleaned pack file names
 js/tags.js            tag groups, starter vocabulary, look-alike check, match rule
@@ -56,7 +57,7 @@ the same names, so the screens never know whether they are live or in the demo:
 `live`, `session`, `signIn`, `signOut`, `init`, `refresh`, `reset`,
 `setErrorHandler`, `users`, `currentUser`, `setUser`, `setName`, `listTags`,
 `tagsById`, `addTag`, `tagUseCount`, `listLoops`, `getLoop`, `untagged`,
-`updateLoop`, `audioUrl`, `warm`, `addFiles`, `listPacks`, `createPack`,
+`updateLoop`, `audioUrl`, `warm`, `cacheAudio`, `addFiles`, `listPacks`, `createPack`,
 `deletePack`, `renamePack`, `myId`, `profileOf`, `people`, `setAvatar`,
 `isFavorite`, `favoriteCount`, `favoritesOf`, `toggleFavorite`, `notePackUse`.
 
@@ -148,5 +149,8 @@ Nothing about who worked on a loop is ever thrown away.
 - **The swipe session lives in localStorage** (`sugpacks-session`), so closing
   the phone mid-swipe keeps your place.
 - **Phones need one tap before audio plays**; after that each card plays itself.
+- **Playback is cached ahead, but deliberately bounded.** New uploads go straight
+  into the browser cache from their local `File`; Library and Swipe cache up to
+  eight likely next loops. Twelve files / 192 MB is the device-wide ceiling.
 - **Avatars are data URLs in the database**, capped by a check constraint. No
   file storage is used anywhere.

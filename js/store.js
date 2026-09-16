@@ -122,6 +122,9 @@ export async function audioUrl(loop) {
   return url;
 }
 
+// Demo uploads already live in IndexedDB and bundled samples are local files.
+export async function cacheAudio() { /* already local */ }
+
 // Uploads: read tempo from the name, draw a waveform in the browser. Demo mode
 // mirrors the live queue contract even though all of its work stays local.
 export async function addFiles(files, onProgress = () => {}) {

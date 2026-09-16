@@ -6,6 +6,7 @@
 // read synchronously; changes update memory at once and save in the background.
 
 import { SUPABASE_KEY, SUPABASE_URL } from "./config.js";
+import { audioObjectUrl, hasAudio, removeAudio, storeAudio } from "./audio-cache.js";
 import { packName, parseName } from "./names.js";
 import { slug } from "./tags.js";
 
@@ -26,6 +27,9 @@ let packs = [];
 let loadedAt = 0;
 let favorites = new Map(); // pack id → set of user ids
 const links = new Map(); // loop id → { url, expires }
+const warmingLinks = new Map(); // loop id → shared batch request
+const cacheJobs = new Map(); // loop id → background download
+const mediaPreloads = new Map(); // fallback when Dropbox blocks a cache fetch
 
 let report = (error) => console.error(error);
 export const setErrorHandler = (fn) => { report = fn; };
@@ -202,6 +206,7 @@ export function updateLoop(id, changes) {
 export async function deleteLoop(loopId) {
   await server("delete_loop", { loopId });
   links.delete(loopId);
+  await removeAudio(loopId).catch(() => {});
   await init();
 }
 
@@ -212,23 +217,86 @@ export async function setLoopStatus(loopId, status, note = null) {
   return pulledFrom;
 }
 
-// Playback links last four hours; ask for a batch ahead of the swipe deck.
+// Playback links last four hours; share in-flight batches between the Library,
+// the background cache and the player so one loop never asks twice.
 export async function warm(ids) {
   const soon = Date.now() + 10 * 60_000;
-  const needed = ids.filter((id) => !(links.get(id)?.expires > soon));
-  for (let i = 0; i < needed.length; i += 25) {
-    const { links: fresh } = await server("play_links", { ids: needed.slice(i, i + 25) });
-    for (const [id, url] of Object.entries(fresh)) links.set(id, { url, expires: Date.now() + 3.8 * 3600_000 });
+  const needed = [...new Set(ids)].filter((id) => !(links.get(id)?.expires > soon));
+  const freshIds = needed.filter((id) => !warmingLinks.has(id));
+  if (freshIds.length) {
+    const task = (async () => {
+      for (let i = 0; i < freshIds.length; i += 25) {
+        const { links: fresh } = await server("play_links", { ids: freshIds.slice(i, i + 25) });
+        for (const [id, url] of Object.entries(fresh)) links.set(id, { url, expires: Date.now() + 3.8 * 3600_000 });
+      }
+    })();
+    for (const id of freshIds) warmingLinks.set(id, task);
+    const clear = () => {
+      for (const id of freshIds) if (warmingLinks.get(id) === task) warmingLinks.delete(id);
+    };
+    task.then(clear, clear);
   }
+  await Promise.all([...new Set(needed.map((id) => warmingLinks.get(id)).filter(Boolean))]);
 }
 
 export async function audioUrl(loop) {
+  const local = await audioObjectUrl(loop.id).catch(() => "");
+  if (local) return local;
   try {
     await warm([loop.id]);
   } catch (error) {
     report(error);
   }
   return links.get(loop.id)?.url ?? "";
+}
+
+function fallbackPreload(id, url) {
+  if (!url || mediaPreloads.has(id)) return;
+  while (mediaPreloads.size >= 12) {
+    const [oldId, old] = mediaPreloads.entries().next().value;
+    old.removeAttribute("src");
+    old.load();
+    mediaPreloads.delete(oldId);
+  }
+  const audio = new Audio();
+  audio.preload = "auto";
+  audio.src = url;
+  audio.load();
+  mediaPreloads.set(id, audio);
+}
+
+function cacheOne(id) {
+  if (cacheJobs.has(id)) return cacheJobs.get(id);
+  const job = (async () => {
+    try { if (await hasAudio(id)) return; } catch { /* fall back to a fresh preload */ }
+    const url = links.get(id)?.url;
+    if (!url) return;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Audio preload failed");
+      if (!(await storeAudio(id, response))) fallbackPreload(id, url);
+    } catch {
+      // Direct playback still works. Holding a preloading media element also
+      // primes the browser cache on platforms that block cross-origin fetches.
+      fallbackPreload(id, url);
+    }
+  })().finally(() => cacheJobs.delete(id));
+  cacheJobs.set(id, job);
+  return job;
+}
+
+// Cache only what is likely to play next. New uploads are cached from their
+// local File below, so they need no round trip back through Dropbox at all.
+export async function cacheAudio(ids) {
+  const wanted = [...new Set(ids)].filter((id) => getLoop(id)).slice(0, 8);
+  if (!wanted.length) return;
+  await warm(wanted);
+  if (navigator.connection?.saveData || document.hidden) return;
+  let next = 0;
+  async function worker() {
+    while (next < wanted.length) await cacheOne(wanted[next++]);
+  }
+  await Promise.all(Array.from({ length: Math.min(2, wanted.length) }, worker));
 }
 
 function durationOf(file) {
@@ -308,6 +376,8 @@ export async function addFiles(files, onProgress = () => {}) {
         const loop = fromLoop(row);
         loop.addedBy = me?.name ?? loop.addedBy;
         loops.unshift(loop);
+        const cacheJob = storeAudio(loop.id, file).catch(() => false).finally(() => cacheJobs.delete(loop.id));
+        cacheJobs.set(loop.id, cacheJob);
         added.push(loop);
         emit({ file, index, status: "done", progress: 1, loop });
       } catch (error) {

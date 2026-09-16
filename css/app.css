@@ -389,6 +389,17 @@ button.row:active, a.row:active, .row--tap:active { background: var(--surface-ho
 button.thumb:hover::before { background: rgba(0, 0, 0, 0.26); }
 button.thumb:active { transform: scale(0.92); transition-duration: 80ms; }
 .thumb.is-playing::before { background: rgba(0, 0, 0, 0.42); }
+.thumb.is-loading .icon { opacity: 0; }
+.thumb.is-loading::after {
+  position: relative;
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+  content: "";
+}
 .thumb--sm { width: 36px; height: 36px; border-radius: 9px; }
 .thumb--sm .icon { width: 14px; height: 14px; }
 .thumb--lg { width: 52px; height: 52px; border-radius: 13px; }

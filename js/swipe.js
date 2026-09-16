@@ -119,6 +119,7 @@ export function renderSwipe(view, go) {
     wire(card, loop);
     sync();
     if (unlocked) player.play(loop);
+    store.cacheAudio(session.deck.slice(session.index, session.index + 8)).catch(() => {});
   }
 
   function sync() {
@@ -126,6 +127,7 @@ export function renderSwipe(view, go) {
     const s = player.state();
     const mine = s.id === card.dataset.id;
     card.classList.toggle("is-playing", mine && s.playing);
+    card.classList.toggle("is-loading", mine && s.loading);
     card.querySelector("[data-progress]").style.width = `${mine && s.duration ? (s.time / s.duration) * 100 : 0}%`;
   }
 
@@ -347,9 +349,11 @@ export function renderPack(view, go) {
   function sync(s) {
     packEl.querySelectorAll(".row[data-id]").forEach((rowEl) => {
       const on = s.id === rowEl.dataset.id && s.playing;
+      const loading = s.id === rowEl.dataset.id && s.loading;
       const button = rowEl.querySelector("[data-play]");
-      if (button.classList.contains("is-playing") === on) return;
+      if (button.classList.contains("is-playing") === on && button.classList.contains("is-loading") === loading) return;
       button.classList.toggle("is-playing", on);
+      button.classList.toggle("is-loading", loading);
       button.innerHTML = icon(on ? "pause" : "play");
     });
   }
@@ -441,6 +445,7 @@ export function renderPack(view, go) {
   view.addEventListener("input", onInput);
   view.addEventListener("change", onChange);
   const unsubscribe = player.subscribe(sync);
+  store.cacheAudio(session.kept.slice(0, 8)).catch(() => {});
   paint();
 
   return () => {

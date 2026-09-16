@@ -111,8 +111,10 @@ function syncThumbs(root, s) {
   root.querySelectorAll("[data-play]").forEach((button) => {
     const id = button.dataset.play || button.closest("[data-id]")?.dataset.id;
     const on = s.id === id && s.playing;
-    if (button.classList.contains("is-playing") === on) return;
+    const loading = s.id === id && s.loading;
+    if (button.classList.contains("is-playing") === on && button.classList.contains("is-loading") === loading) return;
     button.classList.toggle("is-playing", on);
+    button.classList.toggle("is-loading", loading);
     button.innerHTML = icon(on ? "pause" : "play");
   });
 }
@@ -339,6 +341,7 @@ function renderLibrary() {
   const results = view.querySelector("[data-results]");
   const uploadSlot = view.querySelector("[data-uploads]");
   let first = true;
+  let audioObserver = null;
 
   function paintUploads() {
     uploadSlot.innerHTML = uploads.summaryHTML();
@@ -374,6 +377,16 @@ function renderLibrary() {
         </li>`).join("")}</ul>` : `<p class="empty">${q ? "Nothing found." : "No loops yet. Tap + to upload."}</p>`}`;
     first = false;
     syncThumbs(results, player.state());
+    const ahead = shown.slice(0, 8).map((loop) => loop.id);
+    store.cacheAudio(ahead).catch(() => {});
+    audioObserver?.disconnect();
+    if ("IntersectionObserver" in window) {
+      audioObserver = new IntersectionObserver((entries) => {
+        const visible = entries.filter((entry) => entry.isIntersecting).map((entry) => entry.target.dataset.open);
+        if (visible.length) store.cacheAudio(visible).catch(() => {});
+      }, { rootMargin: "280px 0px" });
+      results.querySelectorAll("[data-open]").forEach((row) => audioObserver.observe(row));
+    }
   }
 
   const onClick = (event) => {
@@ -419,6 +432,7 @@ function renderLibrary() {
     dock.removeEventListener("change", onChange);
     unsubscribe();
     unsubscribeUploads();
+    audioObserver?.disconnect();
   };
 }
 
@@ -653,8 +667,10 @@ function openTagger(ids, index = 0, onDone = () => {}) {
     if (!sheet.isConnected) return unsubscribe();
     const button = sheet.querySelector("[data-t-play]");
     const on = s.id === loop.id && s.playing;
-    if (button.classList.contains("is-playing") === on) return;
+    const loading = s.id === loop.id && s.loading;
+    if (button.classList.contains("is-playing") === on && button.classList.contains("is-loading") === loading) return;
     button.classList.toggle("is-playing", on);
+    button.classList.toggle("is-loading", loading);
     button.innerHTML = icon(on ? "pause" : "play");
   });
 

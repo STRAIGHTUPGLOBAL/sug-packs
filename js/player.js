@@ -8,6 +8,9 @@ audio.preload = "auto";
 audio.loop = true;
 
 let currentId = null;
+let sourceId = null;
+let loading = false;
+let request = 0;
 const listeners = new Set();
 
 const emit = () => listeners.forEach((fn) => fn(state()));
@@ -16,6 +19,7 @@ export function state() {
   return {
     id: currentId,
     playing: !audio.paused,
+    loading,
     time: audio.currentTime || 0,
     duration: Number.isFinite(audio.duration) ? audio.duration : 0,
   };
@@ -32,19 +36,33 @@ function tick() {
   emit();
   frame = audio.paused ? 0 : requestAnimationFrame(tick);
 }
-for (const event of ["play", "pause", "loadedmetadata", "seeked", "emptied"]) {
+for (const event of ["play", "pause", "loadedmetadata", "seeked", "emptied", "error"]) {
   audio.addEventListener(event, () => {
+    if (event === "error") sourceId = null;
     if (!frame && !audio.paused) frame = requestAnimationFrame(tick);
     emit();
   });
 }
 
 export async function play(loop, { from = 0 } = {}) {
-  if (currentId !== loop.id) {
+  const token = ++request;
+  if (sourceId !== loop.id) {
+    audio.pause();
     currentId = loop.id;
-    audio.src = await audioUrl(loop);
+    loading = true;
+    emit();
+    const src = await audioUrl(loop);
+    if (token !== request || currentId !== loop.id) return false;
+    if (!src) {
+      loading = false;
+      emit();
+      return false;
+    }
+    audio.src = src;
+    sourceId = loop.id;
     if (from) audio.currentTime = from;
   }
+  loading = false;
   try {
     await audio.play();
     return true;
@@ -55,6 +73,10 @@ export async function play(loop, { from = 0 } = {}) {
 }
 
 export function toggle(loop) {
+  if (currentId === loop.id && loading) {
+    stop();
+    return Promise.resolve(false);
+  }
   if (currentId === loop.id && !audio.paused) {
     audio.pause();
     return Promise.resolve(false);
@@ -63,8 +85,10 @@ export function toggle(loop) {
 }
 
 export function stop() {
+  request++;
   audio.pause();
   currentId = null;
+  loading = false;
   emit();
 }
 
