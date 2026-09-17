@@ -71,7 +71,8 @@ Intentional and responsive, never decorative:
   the data, fonts and logo are ready (minimum ~1.4s).
 - **Screens:** the old content lifts away (~180ms), the new page rises in block
   by block (`.enter`). Between tabs the nav stays put while its highlight slides.
-  A horizontal swipe moves one adjacent tab in that direction.
+  A horizontal swipe moves one adjacent tab and slides the complete page content
+  in that direction; tapping a nav item keeps the calmer rise transition.
 - **Lists** stagger on first paint only (`.stagger`). Repaints never replay an
   entrance; Build chips update in place with a small spring pop.
 - **Swipe:** the next card rises as the top one flies off, and its loop starts

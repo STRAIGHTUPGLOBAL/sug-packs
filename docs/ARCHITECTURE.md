@@ -171,7 +171,7 @@ Nothing about who worked on a loop is ever thrown away.
   status bar.** WebKit can mispaint `bottom: 0` above a phantom strip in
   standalone mode when `viewport-fit=cover` and `black-translucent` are paired.
   Safari tabs do not reproduce it, so do not restore that pair for aesthetics.
-  The version query in `index.html` and the manifest `start_url` is bumped when
+  The version query in `index.html` and the manifest `start_url` are bumped when
   installed-app chrome changes, so iOS cannot recombine an old shell and new CSS.
 - **Dropbox can be edited behind the app's back.** Opening Library compares its
   paths with `/Library`; missing rows are excluded from Build and can be removed

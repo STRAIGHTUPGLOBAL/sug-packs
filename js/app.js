@@ -23,6 +23,8 @@ let cleanup = null;
 let lastPage = null;
 let navFrom = 0;
 let routeToken = 0;
+let pendingTabDirection = 0;
+let entryTabDirection = 0;
 let signedIn = false;
 const selected = new Set();
 let tagQuery = "";
@@ -39,6 +41,8 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 async function route() {
   const token = ++routeToken;
   const page = currentPage();
+  const tabDirection = pendingTabDirection;
+  pendingTabDirection = 0;
   if (!signedIn) return renderSignIn();
   cleanup?.();
   cleanup = null;
@@ -49,13 +53,16 @@ async function route() {
   const asTab = (name) => (name === "u" ? "me" : name);
   const fromTab = TAB_IDS.includes(asTab(lastPage));
   const toTab = TAB_IDS.includes(asTab(page));
+  const directional = Boolean(tabDirection && fromTab && toTab);
   if (lastPage !== null && view.firstElementChild) {
     view.classList.add("is-leaving");
     view.classList.toggle("is-leaving-all", !(fromTab && toTab));
-    await sleep(180);
+    view.classList.toggle("is-tab-next", directional && tabDirection > 0);
+    view.classList.toggle("is-tab-prev", directional && tabDirection < 0);
+    await sleep(directional ? 220 : 180);
     if (token !== routeToken) return;
   }
-  view.classList.remove("is-leaving", "is-leaving-all");
+  view.classList.remove("is-leaving", "is-leaving-all", "is-tab-next", "is-tab-prev");
   window.scrollTo(0, 0);
 
   navFrom = fromTab ? TAB_IDS.indexOf(asTab(lastPage)) : Math.max(0, TAB_IDS.indexOf(asTab(page)));
@@ -63,6 +70,7 @@ async function route() {
 
   const immersive = ["swipe", "pack"].includes(page);
   if (immersive) hideDock();
+  entryTabDirection = directional ? tabDirection : 0;
   if (page === "swipe") cleanup = swipe.renderSwipe(view, go);
   else if (page === "pack") cleanup = swipe.renderPack(view, go);
   else if (page === "library") cleanup = renderLibrary();
@@ -70,9 +78,14 @@ async function route() {
   else if (page === "u") cleanup = renderProfile(decodeURIComponent(location.hash.split("/")[2] ?? ""));
   else if (page === "me") cleanup = renderProfile(store.myId());
   else cleanup = renderBuild();
+  const entered = view.firstElementChild;
+  if (entryTabDirection && entered) setTimeout(() => {
+    if (entered.isConnected) entered.classList.remove("enter", "tab-enter", "tab-enter--next", "tab-enter--prev");
+  }, 380);
+  entryTabDirection = 0;
 }
 
-const pageClass = () => "page enter";
+const pageClass = () => `page enter${entryTabDirection > 0 ? " tab-enter tab-enter--next" : entryTabDirection < 0 ? " tab-enter tab-enter--prev" : ""}`;
 
 const dock = document.querySelector("[data-dock]");
 
@@ -137,7 +150,10 @@ view.addEventListener("pointerup", (event) => {
   if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
   const index = TAB_IDS.indexOf(start.page);
   const next = index + (dx < 0 ? 1 : -1);
-  if (next >= 0 && next < TAB_IDS.length) go(`#/${TAB_IDS[next]}`);
+  if (next >= 0 && next < TAB_IDS.length) {
+    pendingTabDirection = dx < 0 ? 1 : -1;
+    go(`#/${TAB_IDS[next]}`);
+  }
 });
 view.addEventListener("pointercancel", () => { tabTouch = null; });
 
