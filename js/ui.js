@@ -50,6 +50,86 @@ export function toast(message, tone = "") {
 
 // Bottom sheet on phones, centred panel on laptops.
 let onSheetClose = null;
+function enableSheetDismiss(layer, sheet) {
+  const scrim = layer.querySelector(".sheet-scrim");
+  let tracking = false;
+  let dragging = false;
+  let startY = 0;
+  let distance = 0;
+  let startedAt = 0;
+  let pointerId = null;
+
+  const bodyAtTop = () => (sheet.querySelector(".sheet-body")?.scrollTop ?? 0) <= 0;
+  const begin = (y, target) => {
+    if (matchMedia("(min-width: 720px)").matches || !bodyAtTop()) return;
+    if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
+    tracking = true;
+    dragging = false;
+    startY = y;
+    distance = 0;
+    startedAt = performance.now();
+  };
+  const move = (y, event) => {
+    if (!tracking) return;
+    const amount = y - startY;
+    if (amount <= 0) return;
+    if (!bodyAtTop()) { tracking = false; return; }
+    if (!dragging && amount < 8) return;
+    dragging = true;
+    distance = amount;
+    event.preventDefault();
+    sheet.classList.add("is-dragging");
+    sheet.style.transform = `translateY(${distance}px)`;
+    scrim.style.opacity = String(Math.max(0, 1 - distance / Math.max(240, sheet.offsetHeight)));
+  };
+  const finish = () => {
+    if (!tracking) return;
+    tracking = false;
+    if (!dragging) return;
+    const velocity = distance / Math.max(1, performance.now() - startedAt);
+    if (distance > Math.min(120, sheet.offsetHeight * 0.2) || (distance > 48 && velocity > 0.7)) {
+      sheet.style.transition = "";
+      scrim.style.transition = "";
+      closeSheet();
+      return;
+    }
+    sheet.style.transition = "transform 220ms var(--ease-out)";
+    scrim.style.transition = "opacity 220ms ease";
+    sheet.style.transform = "";
+    scrim.style.opacity = "";
+    setTimeout(() => {
+      if (!sheet.isConnected) return;
+      sheet.classList.remove("is-dragging");
+      sheet.style.transition = "";
+      scrim.style.transition = "";
+    }, 230);
+  };
+
+  sheet.addEventListener("touchstart", (event) => {
+    if (event.touches.length === 1) begin(event.touches[0].clientY, event.target);
+  }, { passive: true });
+  sheet.addEventListener("touchmove", (event) => {
+    if (event.touches.length === 1) move(event.touches[0].clientY, event);
+  }, { passive: false });
+  sheet.addEventListener("touchend", finish);
+  sheet.addEventListener("touchcancel", finish);
+
+  sheet.addEventListener("pointerdown", (event) => {
+    if (event.pointerType !== "mouse" || event.button !== 0) return;
+    pointerId = event.pointerId;
+    begin(event.clientY, event.target);
+  });
+  sheet.addEventListener("pointermove", (event) => {
+    if (event.pointerId === pointerId) move(event.clientY, event);
+  });
+  sheet.addEventListener("pointerup", (event) => {
+    if (event.pointerId !== pointerId) return;
+    pointerId = null;
+    finish();
+  });
+  sheet.addEventListener("pointercancel", () => { pointerId = null; finish(); });
+}
+
 export function openSheet(html, { onClose, wide = false } = {}) {
   const layer = document.querySelector("[data-sheet]");
   layer.innerHTML = `<div class="sheet-scrim" data-sheet-close></div><div class="sheet ${wide ? "sheet--wide" : ""}" role="dialog" aria-modal="true"><div class="sheet-grab" aria-hidden="true"></div>${html}</div>`;
@@ -58,7 +138,9 @@ export function openSheet(html, { onClose, wide = false } = {}) {
   document.body.classList.add("has-sheet");
   onSheetClose = onClose || null;
   layer.querySelectorAll("[data-sheet-close]").forEach((el) => el.addEventListener("click", closeSheet));
-  return layer.querySelector(".sheet");
+  const sheet = layer.querySelector(".sheet");
+  enableSheetDismiss(layer, sheet);
+  return sheet;
 }
 
 // Swap what an open sheet shows (the next loop to tag) without closing it.
@@ -75,6 +157,7 @@ export function replaceSheet(html, { onClose } = {}) {
   old.replaceWith(sheet);
   onSheetClose = onClose || null;
   sheet.querySelectorAll("[data-sheet-close]").forEach((el) => el.addEventListener("click", closeSheet));
+  enableSheetDismiss(layer, sheet);
   return sheet;
 }
 

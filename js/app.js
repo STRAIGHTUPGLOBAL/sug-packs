@@ -8,7 +8,7 @@ import * as swipe from "./swipe.js";
 import * as uploads from "./uploads.js";
 import { packName } from "./names.js";
 import { GROUPS, lookalike, matches, slug, tagStyle } from "./tags.js";
-import { ago, closeSheet, copyText, esc, icon, openSheet, replaceSheet, toast } from "./ui.js";
+import { ago, closeSheet, copyText, esc, icon, openSheet, replaceSheet, sheetOpen, toast } from "./ui.js";
 
 const view = document.querySelector("[data-view]");
 const TABS = [
@@ -410,6 +410,7 @@ function renderLibrary() {
   const filterSlot = view.querySelector("[data-lib-filters]");
   let first = true;
   let audioObserver = null;
+  let shownIds = [];
 
   function paintUploads() {
     uploadSlot.innerHTML = uploads.summaryHTML();
@@ -445,6 +446,7 @@ function renderLibrary() {
       .filter((loop) => !libraryBestOnly || loop.bestOf)
       .filter((loop) => matches(loop, libraryTags, byId))
       .sort((a, b) => librarySort === "name" ? a.title.localeCompare(b.title) : librarySort === "oldest" ? a.addedAt - b.addedAt : b.addedAt - a.addedAt);
+    shownIds = shown.filter((loop) => !loop.missing).map((loop) => loop.id);
 
     results.innerHTML = `
       ${missing.length && !q && !filtering ? `
@@ -545,7 +547,7 @@ function renderLibrary() {
     const row = event.target.closest("[data-open]");
     if (row) {
       if (store.getLoop(row.dataset.open)?.missing) return toast("That file is missing from Dropbox");
-      openTagger([row.dataset.open], 0, paint);
+      openTagger(shownIds, shownIds.indexOf(row.dataset.open), paint);
     }
   };
   const onInput = (event) => {
@@ -598,7 +600,8 @@ function openTagger(ids, index = 0, onDone = () => {}) {
   const loop = store.getLoop(ids[index]);
   if (!loop) return;
   const draft = new Set(loop.tags);
-  const queue = ids.length > 1;
+  const sequence = ids.length > 1;
+  const first = index === 0;
   const last = index === ids.length - 1;
   const inPacks = store.listPacks().filter((pack) => pack.loopIds.includes(loop.id)).length;
   let adding = null;
@@ -609,10 +612,8 @@ function openTagger(ids, index = 0, onDone = () => {}) {
       <button class="thumb thumb--lg" type="button" data-t-play aria-label="Play" style="${coverStyle(loop.file)}">${icon("play")}</button>
       <div class="row-main">
         <h2 class="sheet-title">${esc(loop.title)}</h2>
-        <p class="sheet-sub">${[loop.bpm ? `${loop.bpm} BPM` : "", queue ? `${index + 1} of ${ids.length}` : ""].filter(Boolean).join(" · ")}</p>
-        <p class="sheet-file">${esc(loop.file)}</p>
+        <p class="sheet-sub">${[loop.bpm ? `${loop.bpm} BPM` : "", sequence ? `${index + 1} of ${ids.length}` : ""].filter(Boolean).join(" · ")}</p>
       </div>
-      <button class="icon-button" type="button" data-sheet-close aria-label="Close">${icon("x")}</button>
     </div>
     <div class="loop-player">
       <input type="range" min="0" max="1000" step="1" value="0" data-t-seek aria-label="Playback position">
@@ -659,12 +660,14 @@ function openTagger(ids, index = 0, onDone = () => {}) {
         </div>
       </div>
     </div>
-    <div class="sheet-foot">
-      ${queue ? '<button class="button" type="button" data-t-skip>Skip</button>' : ""}
-      <button class="button button--primary" type="button" data-t-save>${queue && !last ? "Next" : "Save"}</button>
+    <div class="sheet-foot sheet-foot--loop">
+      <button class="button sheet-action" type="button" data-t-prev aria-label="Previous loop" title="Previous loop" ${first ? "disabled" : ""}>${icon("back")}</button>
+      <button class="button sheet-action" type="button" data-t-next aria-label="Next loop" title="Next loop" ${last ? "disabled" : ""}>${icon("chevron")}</button>
+      <button class="button button--primary sheet-save" type="button" data-t-save>Save</button>
+      <button class="button sheet-action" type="button" data-sheet-close aria-label="Close" title="Close">${icon("x")}</button>
     </div>`;
   const options = { onClose: () => { player.stop(); onDone(); } };
-  const sheet = index > 0 ? replaceSheet(html, options) : openSheet(html, options);
+  const sheet = sheetOpen() ? replaceSheet(html, options) : openSheet(html, options);
 
   function paintStatus() {
     const current = store.getLoop(loop.id)?.status ?? loop.status ?? "open";
@@ -823,7 +826,8 @@ function openTagger(ids, index = 0, onDone = () => {}) {
       return;
     }
     if (event.target.closest("[data-t-play]")) return player.toggle(loop);
-    if (event.target.closest("[data-t-skip]")) return next();
+    if (event.target.closest("[data-t-prev]")) return move(-1);
+    if (event.target.closest("[data-t-next]")) return move(1);
     if (event.target.closest("[data-t-save]")) return save();
   });
   sheet.addEventListener("change", async (event) => {
@@ -876,24 +880,27 @@ function openTagger(ids, index = 0, onDone = () => {}) {
   function save() {
     const value = (name) => sheet.querySelector(`[data-f="${name}"]`).value.trim();
     const bpm = parseInt(value("bpm"), 10);
-    store.updateLoop(loop.id, { title: value("title") || loop.title, bpm: Number.isFinite(bpm) ? bpm : null, key: value("key") || null, tags: [...draft] });
-    if (!queue || last) toast("Saved");
-    next();
+    const title = value("title") || loop.title;
+    store.updateLoop(loop.id, { title, bpm: Number.isFinite(bpm) ? bpm : null, key: value("key") || null, tags: [...draft] });
+    sheet.querySelector(".sheet-title").textContent = title;
+    sheet.querySelector(".sheet-sub").textContent = [Number.isFinite(bpm) ? `${bpm} BPM` : "", sequence ? `${index + 1} of ${ids.length}` : ""].filter(Boolean).join(" · ");
+    onDone();
+    toast("Saved");
   }
 
-  function next() {
+  function move(by) {
+    const nextIndex = index + by;
+    if (nextIndex < 0 || nextIndex >= ids.length) return;
     unsubscribe();
-    if (queue && !last) {
-      onDone();
-      openTagger(ids, index + 1, onDone);
-    } else {
-      closeSheet();
-    }
+    player.stop();
+    onDone();
+    openTagger(ids, nextIndex, onDone);
   }
 
   paintGroups();
   paintStatus();
   paintBest();
+  store.cacheAudio([ids[index - 1], ids[index + 1]].filter(Boolean)).catch(() => {});
   player.play(loop);
 }
 

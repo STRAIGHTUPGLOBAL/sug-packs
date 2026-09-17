@@ -89,7 +89,8 @@ Intentional and responsive, never decorative:
 - `.row` inside `.list` — the grouped list row; `.row--media` for a thumb on the left.
 - `.bar` — the floating glass bar (a count plus two actions, Build only).
 - `.cta` — a single main action over a fade, never inside a container.
-- `.sheet` — bottom sheet on phones, centred panel from 720px up.
+- `.sheet` — bottom sheet on phones, centred panel from 720px up. At the top of
+  its scroll, pulling down dismisses it; loop-sheet actions stay thumb-reachable.
 
 ## The logotype and the icon
 

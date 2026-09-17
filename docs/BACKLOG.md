@@ -79,7 +79,8 @@ Keep entries short: goal, why, and how you will know it works.
 - [x] Home-screen icon v2: straight globe, full-bleed purple, subtle dark base.
 - [x] Mobile logging pass: stop resets playback, loop sheets have a seek bar,
       Best of is a real loop flag, Placed can safely return to Open, exact-name
-      duplicates are refused, and the bottom navigation no longer gets rebuilt.
+      duplicates are refused, the sheet pulls down to dismiss, and its footer
+      keeps Previous, Next, Save and Close within thumb reach.
 - [x] Missing Dropbox files: Library notices stale rows, keeps them out of Build,
       and can remove one entry or the whole missing batch.
 - [x] Fast, correct playback: switching loops cancels the old request, and a
