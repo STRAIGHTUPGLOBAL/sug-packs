@@ -11,6 +11,7 @@ import { GROUPS, lookalike, matches, slug } from "./tags.js";
 import { ago, closeSheet, copyText, esc, icon, openSheet, replaceSheet, toast } from "./ui.js";
 
 const view = document.querySelector("[data-view]");
+const topbar = document.querySelector("[data-topbar]");
 const TABS = [
   { id: "build", label: "Build", icon: "build" },
   { id: "library", label: "Library", icon: "library" },
@@ -22,7 +23,6 @@ const TAB_IDS = TABS.map((t) => t.id);
 let cleanup = null;
 let lastPage = null;
 let navFrom = 0;
-let keepHeader = false;
 let routeToken = 0;
 let signedIn = false;
 const selected = new Set();
@@ -57,11 +57,12 @@ async function route() {
   view.classList.remove("is-leaving", "is-leaving-all");
   window.scrollTo(0, 0);
 
-  keepHeader = fromTab && toTab;
   navFrom = fromTab ? TAB_IDS.indexOf(asTab(lastPage)) : Math.max(0, TAB_IDS.indexOf(asTab(page)));
   lastPage = page;
 
-  if (["swipe", "pack"].includes(page)) hideDock();
+  const immersive = ["swipe", "pack"].includes(page);
+  setTopbar(!immersive);
+  if (immersive) hideDock();
   if (page === "swipe") cleanup = swipe.renderSwipe(view, go);
   else if (page === "pack") cleanup = swipe.renderPack(view, go);
   else if (page === "library") cleanup = renderLibrary();
@@ -71,9 +72,14 @@ async function route() {
   else cleanup = renderBuild();
 }
 
-const pageClass = () => `page enter ${keepHeader ? "keep-header" : ""}`;
+const pageClass = () => "page enter";
 
 const dock = document.querySelector("[data-dock]");
+
+function setTopbar(show) {
+  topbar.hidden = !show;
+  document.body.classList.toggle("has-topbar", show);
+}
 
 function header(active, left) {
   return `<header class="header">${left}</header>`;
@@ -112,6 +118,29 @@ function settleNav() {
   requestAnimationFrame(() => requestAnimationFrame(() => nav.style.setProperty("--at", nav.dataset.navTo)));
 }
 
+// The tool tray is independent from the nav, but the page still needs to clear
+// its current compact height. Library grows the tray only while search is up.
+function watchControls(controls) {
+  if (!controls) return () => {};
+  let frame = 0;
+  const measure = () => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => {
+      if (controls.isConnected && !controls.classList.contains("is-searching")) {
+        document.documentElement.style.setProperty("--controls-h", `${controls.offsetHeight}px`);
+      }
+    });
+  };
+  const observer = new ResizeObserver(measure);
+  observer.observe(controls);
+  measure();
+  return () => {
+    cancelAnimationFrame(frame);
+    observer.disconnect();
+    document.documentElement.style.removeProperty("--controls-h");
+  };
+}
+
 const loopSub = (loop, byId) => {
   const tags = loop.tags.map((id) => byId.get(id)?.label).filter(Boolean);
   return [loop.bpm ? `${loop.bpm} BPM` : "", tags.slice(0, 3).join(", ")].filter(Boolean).join(" · ");
@@ -136,6 +165,7 @@ function renderSignIn() {
   cleanup?.();
   cleanup = null;
   hideDock();
+  setTopbar(false);
   lastPage = null;
   view.classList.remove("is-leaving", "is-leaving-all");
   view.innerHTML = `
@@ -193,7 +223,6 @@ function renderBuild() {
 
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("build", '<img class="header-logo" src="assets/sug-packs-logotype.png" alt="SUG Packs" width="1200" height="199">')}
       ${resumable ? `
         <div class="list list--spaced">
           <a class="row row--media" href="#/swipe">
@@ -224,6 +253,8 @@ function renderBuild() {
   setDock("build");
 
   const page = view.querySelector(".page");
+  const controls = view.querySelector(".page-controls");
+  const stopWatchingControls = watchControls(controls);
   const groupsEl = view.querySelector("[data-groups]");
   const clearButton = view.querySelector("[data-clear]");
   const current = () => tagged.filter((l) => matches(l, selected, byId));
@@ -297,6 +328,10 @@ function renderBuild() {
   }
 
   const onClick = (event) => {
+    if (controls.classList.contains("is-searching") && !event.target.closest(".page-controls")) {
+      controls.classList.remove("is-searching");
+      view.querySelector("[data-query]")?.blur();
+    }
     const chip = event.target.closest("[data-tag]");
     if (chip) {
       const id = chip.dataset.tag;
@@ -322,12 +357,18 @@ function renderBuild() {
     tagQuery = event.target.value;
     renderGroups();
   };
+  const onFocus = (event) => {
+    if (event.target.matches("[data-query]")) controls.classList.add("is-searching");
+  };
   view.addEventListener("click", onClick);
   view.addEventListener("input", onInput);
+  view.addEventListener("focusin", onFocus);
   renderGroups();
   return () => {
     view.removeEventListener("click", onClick);
     view.removeEventListener("input", onInput);
+    view.removeEventListener("focusin", onFocus);
+    stopWatchingControls();
   };
 }
 
@@ -342,7 +383,6 @@ const LIBRARY_SORTS = { recent: "Newest", name: "A–Z", oldest: "Oldest" };
 function renderLibrary() {
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("library", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="227"><h1 class="header-title">Library</h1></div>')}
       <div class="page-controls">
         <div class="search-row">
           <label class="search">${icon("search")}<input type="search" data-lib-query placeholder="Search loops or tags" value="${esc(libraryQuery)}" autocomplete="off"></label>
@@ -358,6 +398,8 @@ function renderLibrary() {
   setDock("library");
 
   const results = view.querySelector("[data-results]");
+  const controls = view.querySelector(".page-controls");
+  const stopWatchingControls = watchControls(controls);
   const uploadSlot = view.querySelector("[data-uploads]");
   const filterSlot = view.querySelector("[data-lib-filters]");
   let first = true;
@@ -443,8 +485,18 @@ function renderLibrary() {
   }
 
   const onClick = async (event) => {
+    if (controls.classList.contains("is-searching") && !event.target.closest(".page-controls")) {
+      controls.classList.remove("is-searching");
+      view.querySelector("[data-lib-query]")?.blur();
+    }
     if (event.target.closest("[data-upload-queue]")) { uploads.openQueue(); return; }
-    if (event.target.closest("[data-lib-filter-done]")) { libraryFiltersOpen = false; paintFilters(); return; }
+    if (event.target.closest("[data-lib-filter-done]")) {
+      libraryFiltersOpen = false;
+      controls.classList.remove("is-searching");
+      view.querySelector("[data-lib-query]")?.blur();
+      paintFilters();
+      return;
+    }
     if (event.target.closest("[data-lib-filter-clear]")) { libraryTags.clear(); libraryBestOnly = false; paintFilters(); paint(); return; }
     if (event.target.closest("[data-lib-best]")) { libraryBestOnly = !libraryBestOnly; paintFilters(); paint(); return; }
     const tagFilter = event.target.closest("[data-lib-tag]");
@@ -500,6 +552,7 @@ function renderLibrary() {
   };
   const onFocus = (event) => {
     if (!event.target.matches("[data-lib-query]")) return;
+    controls.classList.add("is-searching");
     libraryFiltersOpen = true;
     paintFilters();
   };
@@ -534,6 +587,7 @@ function renderLibrary() {
     unsubscribe();
     unsubscribeUploads();
     audioObserver?.disconnect();
+    stopWatchingControls();
   };
 }
 
@@ -895,7 +949,6 @@ function matchesQuery(pack, q) {
 function renderPacks() {
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("packs", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="227"><h1 class="header-title">Packs</h1></div>')}
       <div class="page-controls">
         <div class="search-row">
           <label class="search">${icon("search")}<input type="search" data-pack-query placeholder="Search packs and loops" value="${esc(packQuery)}" autocomplete="off"></label>
@@ -913,6 +966,8 @@ function renderPacks() {
   setDock("packs");
 
   const listEl = view.querySelector("[data-list]");
+  const controls = view.querySelector(".page-controls");
+  const stopWatchingControls = watchControls(controls);
   let first = true;
 
   function paint() {
@@ -934,6 +989,10 @@ function renderPacks() {
   }
 
   const onClick = async (event) => {
+    if (controls.classList.contains("is-searching") && !event.target.closest(".page-controls")) {
+      controls.classList.remove("is-searching");
+      view.querySelector("[data-pack-query]")?.blur();
+    }
     const fav = event.target.closest("[data-fav]");
     if (fav) {
       event.stopPropagation();
@@ -960,12 +1019,18 @@ function renderPacks() {
     packQuery = event.target.value;
     paint();
   };
+  const onFocus = (event) => {
+    if (event.target.matches("[data-pack-query]")) controls.classList.add("is-searching");
+  };
   view.addEventListener("click", onClick);
   view.addEventListener("input", onInput);
+  view.addEventListener("focusin", onFocus);
   paint();
   return () => {
     view.removeEventListener("click", onClick);
     view.removeEventListener("input", onInput);
+    view.removeEventListener("focusin", onFocus);
+    stopWatchingControls();
   };
 }
 
@@ -1224,9 +1289,7 @@ function renderProfile(id) {
 
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("me", own
-        ? `<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="227"><h1 class="header-title">You</h1></div>`
-        : `<div class="header-back"><a class="icon-button" href="#/me" aria-label="Back">${icon("back")}</a><h1 class="header-title">${esc(person.name)}</h1></div>`)}
+      ${own ? "" : header("me", `<div class="header-back"><a class="icon-button" href="#/me" aria-label="Back">${icon("back")}</a><h1 class="header-title">${esc(person.name)}</h1></div>`)}
       <div class="profile">
         ${own ? `
           <button class="avatar-button" type="button" data-avatar aria-label="${person.avatar ? "Edit picture" : "Add a picture"}">

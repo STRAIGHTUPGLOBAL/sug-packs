@@ -7,7 +7,8 @@ element, the element goes.
 ## The frame
 
 - One column, 640px maximum, 20px side gutters, phone first.
-- One title and one main action per screen.
+- One persistent SUG Packs logo bar and one main action per screen. The bottom
+  tabs identify the main pages, so those page names are not repeated as titles.
 - Geist, one typeface. No uppercase mono labels, no counts on chips, no
   decorative rules or dividers beyond the hairlines inside lists.
 - Near-black ground (`--bg`), one soft blue light at the top of the page, and
@@ -19,17 +20,19 @@ element, the element goes.
 
 The app is used one-handed, walking around. Everything you reach for often sits
 at the **bottom**: one fixed-height glass navigation, centred and big enough for
-a thumb. Its tiny labels keep the current page legible after its heading scrolls
-away. Search, upload, filters and sort sit below the page heading; putting them
-in the dock made its height jump between Library and Packs on mobile.
+a thumb. Its tiny labels identify the current page without a repeated heading.
+Search, upload, filters and sort sit in their own fixed tray just above the nav,
+never inside it. Focusing search lifts that tray under the logo and reveals its
+filters, then it returns to thumb reach when search is done.
 
 Four tabs: Build, Library, Packs, You. "You" is your own profile — picture,
 name, counts, favourites, your packs, the other people, and the account rows.
 
 The dock is one fixed element outside the page (`[data-dock]`), updated via
-`setDock(active)`. Its height is measured into `--dock-h` so the page and the
-floating bar keep clear of it. The swipe deck and the pack page hide it: they
-are full-screen tasks with their own single action.
+`setDock(active)`. Its height is measured into `--dock-h` so the page, control
+tray and floating bar keep clear of it. Page tools never change its footprint.
+The swipe deck and the pack page hide it: they are full-screen tasks with their
+own single action.
 
 ## Colour means something
 
@@ -55,10 +58,9 @@ messages say what happened in the owner's words, not the system's.
 
 ## Spacing rhythm (Packs is the reference)
 
-20px from the header to the first block, 12px between two parts of the same
-control cluster (search → filters), 20px to the next block, 28px before a
-section label, 10px from a label to its list. Measure before changing:
-a 0px gap under the filter row was spotted immediately.
+12px between two parts of the same control cluster (search → filters), 20px to
+the next block, 28px before a section label, 10px from a label to its list.
+Measure before changing: a 0px gap under the filter row was spotted immediately.
 
 ## Motion
 
@@ -67,8 +69,8 @@ Intentional and responsive, never decorative:
 - **Splash:** logotype eases in, a small blue wheel turns, both ease out once
   the data, fonts and logo are ready (minimum ~1.4s).
 - **Screens:** the old content lifts away (~180ms), the new page rises in block
-  by block (`.enter`). Between tabs the nav stays put and its highlight slides;
-  only the title swaps.
+  by block (`.enter`). Between tabs the logo and nav stay put while the nav
+  highlight slides.
 - **Lists** stagger on first paint only (`.stagger`). Repaints never replay an
   entrance; Build chips update in place with a small spring pop.
 - **Swipe:** the next card rises as the top one flies off, and its loop starts
@@ -89,10 +91,10 @@ Intentional and responsive, never decorative:
 
 ## The logotype and the icon
 
-- The logotype (`assets/sug-packs-logotype.png`) is **not for small spaces**:
-  the splash and the Build header only.
-- Everywhere else uses the app mark (`assets/app-mark.png`) at 30px, beside the
-  page title.
+- The logotype (`assets/sug-packs-logotype.png`) appears on the splash and in a
+  compact sticky bar shared by all four main pages.
+- The app mark (`assets/app-mark.png`) remains for app icons and places where a
+  square mark is actually needed.
 - Owner's source files stay in `assets/` untouched; the web copies are generated
   from them (crop to the visible area, resize, and for the home screen centre it
   on the app's near-black).

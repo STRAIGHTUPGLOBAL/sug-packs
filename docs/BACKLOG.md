@@ -71,9 +71,9 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Done
 
-- [x] Library finding and polish: top search reveals tag and Best of filters,
-      sort offers Newest / A–Z / Oldest, category colors reduce blue repetition,
-      Best of sits on the thumbnail, filenames are visible, and the dock stays put.
+- [x] Mobile shell and Library finding: a sticky logo replaces repeated page
+      headings, larger tab icons stay fixed, thumb-reachable search lifts when
+      active, and Library adds tag / Best of filters plus Newest / A–Z / Oldest.
 - [x] Mobile logging pass: stop resets playback, loop sheets have a seek bar,
       Best of is a real loop flag, Placed can safely return to Open, exact-name
       duplicates are refused, and the bottom navigation no longer gets rebuilt.
