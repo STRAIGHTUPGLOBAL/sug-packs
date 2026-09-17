@@ -83,12 +83,26 @@ function header(active, left) {
 // page's own controls, and the navigation under them.
 function setDock(active, controls = "") {
   dock.hidden = false;
-  dock.innerHTML = `
-    ${controls ? `<div class="dock-controls">${controls}</div>` : ""}
-    <nav class="nav" aria-label="Main" style="--at:${navFrom}" data-nav-to="${TAB_IDS.indexOf(active)}">
+  if (!dock.querySelector(".nav")) {
+    dock.innerHTML = `
+    <div class="dock-controls" data-dock-controls hidden></div>
+    <nav class="nav" aria-label="Main">
       <span class="nav-indicator"></span>
-      ${TABS.map((t) => `<a class="nav-item ${t.id === active ? "is-active" : ""}" href="#/${t.id}" aria-label="${t.label}" title="${t.label}" ${t.id === active ? 'aria-current="page"' : ""}>${icon(t.icon)}<span class="nav-label">${t.label}</span></a>`).join("")}
+      ${TABS.map((t) => `<a class="nav-item" href="#/${t.id}" data-nav="${t.id}" aria-label="${t.label}" title="${t.label}">${icon(t.icon)}<span class="nav-label">${t.label}</span></a>`).join("")}
     </nav>`;
+  }
+  const controlsRoot = dock.querySelector("[data-dock-controls]");
+  controlsRoot.hidden = !controls;
+  controlsRoot.innerHTML = controls;
+  const nav = dock.querySelector(".nav");
+  nav.style.setProperty("--at", navFrom);
+  nav.dataset.navTo = TAB_IDS.indexOf(active);
+  nav.querySelectorAll("[data-nav]").forEach((item) => {
+    const on = item.dataset.nav === active;
+    item.classList.toggle("is-active", on);
+    if (on) item.setAttribute("aria-current", "page");
+    else item.removeAttribute("aria-current");
+  });
   settleNav();
   requestAnimationFrame(() => document.documentElement.style.setProperty("--dock-h", `${dock.offsetHeight}px`));
 }
@@ -115,7 +129,8 @@ function syncThumbs(root, s) {
     if (button.classList.contains("is-playing") === on && button.classList.contains("is-loading") === loading) return;
     button.classList.toggle("is-playing", on);
     button.classList.toggle("is-loading", loading);
-    button.innerHTML = icon(on ? "pause" : "play");
+    button.setAttribute("aria-label", on ? "Stop" : "Play");
+    button.innerHTML = icon(on ? "stop" : "play");
   });
 }
 
@@ -379,6 +394,7 @@ function renderLibrary() {
           <div class="row-main">
             <div class="row-title">${esc(loop.title)}</div>
             <div class="row-sub ${loop.tags.length || loop.status !== "open" ? "" : "row-sub--amber"}">
+              ${loop.bestOf ? `<span class="state state--best">${icon("trophy")} Best of</span>` : ""}
               ${loop.missing ? `<span class="state state--missing">${icon("x")} Missing from Dropbox</span>` : loop.status === "placed" ? `<span class="state state--placed">${icon("disc")} Placed</span>` : loop.status === "reserved" ? `<span class="state state--reserved">${icon("reserved")} Reserved</span>` : ""}
               ${loop.missing ? "" : loop.tags.length ? esc(loopSub(loop, byId)) : `${loop.bpm ? `${loop.bpm} BPM · ` : ""}No tags`}
             </div>
@@ -495,15 +511,22 @@ function openTagger(ids, index = 0, onDone = () => {}) {
       </div>
       <button class="icon-button" type="button" data-sheet-close aria-label="Close">${icon("x")}</button>
     </div>
+    <div class="loop-player">
+      <input type="range" min="0" max="1000" step="1" value="0" data-t-seek aria-label="Playback position">
+      <div class="loop-player-time"><span data-t-time>0:00</span><span data-t-duration>${player.time(loop.duration)}</span></div>
+    </div>
     <div class="sheet-body">
+      <div class="sheet-tools">
+        <button class="chip best-chip ${loop.bestOf ? "is-on" : ""}" type="button" data-best>${icon("trophy")} Best of</button>
+      </div>
       <div class="tag-groups" data-t-groups></div>
       <p class="list-label">Status</p>
-      <div class="list">
-        <div class="row row--actions">
-          <button class="chip status-chip" type="button" data-status="open">Open</button>
-          <button class="chip status-chip" type="button" data-status="reserved">${icon("reserved")} Reserved</button>
-          <button class="chip status-chip" type="button" data-status="placed">${icon("disc")} Placed</button>
-        </div>
+      <div class="status-chips">
+        <button class="chip status-chip" type="button" data-status="open">Open</button>
+        <button class="chip status-chip" type="button" data-status="reserved">${icon("reserved")} Reserved</button>
+        <button class="chip status-chip" type="button" data-status="placed">${icon("disc")} Placed</button>
+      </div>
+      <div class="list status-note" data-note-list hidden>
         <div class="row" data-note-row hidden>
           <div class="row-main row-field">
             <label for="status-note" data-note-label>Who has it</label>
@@ -548,11 +571,18 @@ function openTagger(ids, index = 0, onDone = () => {}) {
       const kind = chip.dataset.status;
       chip.classList.toggle("is-on", kind === current);
       chip.classList.toggle(`is-${kind}`, kind === current);
+      chip.disabled = current === "placed" && kind === "reserved";
       chip.innerHTML = kind === "open" ? "Open" : kind === "reserved" ? `${icon("reserved")} Reserved` : `${icon("disc")} Placed`;
     });
     const noteRow = sheet.querySelector("[data-note-row]");
     noteRow.hidden = current === "open";
+    sheet.querySelector("[data-note-list]").hidden = current === "open";
     sheet.querySelector("[data-note-label]").textContent = current === "placed" ? "Where it landed" : "Who has it";
+  }
+
+  function paintBest() {
+    const button = sheet.querySelector("[data-best]");
+    button.classList.toggle("is-on", Boolean(store.getLoop(loop.id)?.bestOf));
   }
 
   function paintGroups() {
@@ -618,6 +648,22 @@ function openTagger(ids, index = 0, onDone = () => {}) {
     const use = event.target.closest("[data-t-use]");
     if (use) { draft.add(use.dataset.tUse); adding = null; notice = null; return paintGroups(); }
     if (event.target.closest("[data-t-force]")) return addTag(adding, notice.label, true);
+    const best = event.target.closest("[data-best]");
+    if (best) {
+      best.disabled = true;
+      try {
+        const on = await store.setBestOf(loop.id, !store.getLoop(loop.id)?.bestOf);
+        loop.bestOf = on;
+        paintBest();
+        toast(on ? "Added to Best of" : "Removed from Best of");
+        onDone();
+      } catch (error) {
+        toast(error.message || "Couldn't change that");
+      } finally {
+        best.disabled = false;
+      }
+      return;
+    }
     const status = event.target.closest("[data-status]");
     if (status) {
       const next = status.dataset.status;
@@ -626,17 +672,17 @@ function openTagger(ids, index = 0, onDone = () => {}) {
       if (next === "placed" && !status.dataset.sure) {
         const packs = store.listPacks().filter((pack) => pack.loopIds.includes(loop.id)).length;
         status.dataset.sure = "1";
-        status.textContent = packs ? `Tap again · leaves ${plural(packs, "pack")}` : "Tap again to place";
+        status.textContent = packs ? `Confirm · ${packs} ${packs === 1 ? "pack" : "packs"}` : "Confirm";
         setTimeout(() => { if (status.dataset.sure) { delete status.dataset.sure; paintStatus(); } }, 4000);
         return;
       }
       try {
-        const pulled = await store.setLoopStatus(loop.id, next, sheet.querySelector("[data-note]").value.trim() || null);
+        const { pulledFrom = 0, restoredTo = 0 } = await store.setLoopStatus(loop.id, next, sheet.querySelector("[data-note]").value.trim() || null);
         loop.status = next;
         paintStatus();
         toast(next === "placed"
-          ? `Placed${pulled ? ` · pulled from ${plural(pulled, "pack")}` : ""}`
-          : next === "reserved" ? "Reserved" : "Open again");
+          ? `Placed${pulledFrom ? ` · pulled from ${plural(pulledFrom, "pack")}` : ""}`
+          : next === "reserved" ? "Reserved" : `Open again${restoredTo ? ` · restored to ${plural(restoredTo, "pack")}` : ""}`);
         onDone();
       } catch (error) {
         paintStatus();
@@ -689,6 +735,10 @@ function openTagger(ids, index = 0, onDone = () => {}) {
   });
 
   sheet.addEventListener("input", (event) => {
+    if (event.target.matches("[data-t-seek]")) {
+      player.seek(Number(event.target.value) / 1000);
+      return;
+    }
     if (!event.target.matches("[data-del-input]")) return;
     const typed = event.target.value.trim().toLowerCase();
     sheet.querySelector("[data-del-go]").disabled = typed !== loop.file.toLowerCase();
@@ -706,10 +756,18 @@ function openTagger(ids, index = 0, onDone = () => {}) {
     const button = sheet.querySelector("[data-t-play]");
     const on = s.id === loop.id && s.playing;
     const loading = s.id === loop.id && s.loading;
-    if (button.classList.contains("is-playing") === on && button.classList.contains("is-loading") === loading) return;
     button.classList.toggle("is-playing", on);
     button.classList.toggle("is-loading", loading);
-    button.innerHTML = icon(on ? "pause" : "play");
+    button.setAttribute("aria-label", on ? "Stop" : "Play");
+    button.innerHTML = icon(on ? "stop" : "play");
+    const mine = s.id === loop.id || s.sourceId === loop.id;
+    const duration = mine && s.duration ? s.duration : loop.duration || 0;
+    const elapsed = mine ? s.time : 0;
+    const seek = sheet.querySelector("[data-t-seek]");
+    seek.value = duration ? Math.round((elapsed / duration) * 1000) : 0;
+    seek.style.setProperty("--played", `${duration ? (elapsed / duration) * 100 : 0}%`);
+    sheet.querySelector("[data-t-time]").textContent = player.time(elapsed);
+    sheet.querySelector("[data-t-duration]").textContent = player.time(duration);
   });
 
   function save() {
@@ -732,6 +790,7 @@ function openTagger(ids, index = 0, onDone = () => {}) {
 
   paintGroups();
   paintStatus();
+  paintBest();
   player.play(loop);
 }
 

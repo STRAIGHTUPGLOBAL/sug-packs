@@ -49,6 +49,8 @@ Keep entries short: goal, why, and how you will know it works.
   sitting unused.
 - [ ] **Install to the home screen properly** — a service worker so the app opens
   instantly and survives a bad connection (the manifest and icons are already there).
+- [ ] **Keep a Best of Dropbox folder synced** — mirror every Best of loop into
+  one shareable folder that adds and removes files automatically.
 
 ## Later / ideas
 
@@ -69,6 +71,9 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Done
 
+- [x] Mobile logging pass: stop resets playback, loop sheets have a seek bar,
+      Best of is a real loop flag, Placed can safely return to Open, exact-name
+      duplicates are refused, and the bottom navigation no longer gets rebuilt.
 - [x] Missing Dropbox files: Library notices stale rows, keeps them out of Build,
       and can remove one entry or the whole missing batch.
 - [x] Fast, correct playback: switching loops cancels the old request, and a

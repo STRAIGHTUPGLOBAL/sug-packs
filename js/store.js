@@ -41,6 +41,7 @@ async function seed() {
     file: demo.file,
     ...parseName(demo.file),
     tags: demo.tags,
+    bestOf: false,
     status: "open",
     duration: peaks[demo.file]?.duration || 0,
     peaks: peaks[demo.file]?.peaks || [],
@@ -119,6 +120,14 @@ export function updateLoop(id, changes) {
   save();
 }
 
+export async function setBestOf(id, bestOf) {
+  const loop = getLoop(id);
+  if (!loop) return false;
+  loop.bestOf = Boolean(bestOf);
+  save();
+  return loop.bestOf;
+}
+
 export async function audioUrl(loop) {
   if (!loop.uploaded) return loop.src;
   if (uploadUrls.has(loop.id)) return uploadUrls.get(loop.id);
@@ -165,7 +174,7 @@ export async function addFiles(files, onProgress = () => {}) {
         emit({ file, index, status: "saving", progress: 0.9 });
         await idbPut(id, file);
         uploadUrls.set(id, URL.createObjectURL(file));
-        const loop = { id, by: state.user, file: file.name, ...parseName(file.name), tags: [], duration, peaks, uploaded: true, addedBy: state.user, addedAt: Date.now() };
+        const loop = { id, by: state.user, file: file.name, ...parseName(file.name), tags: [], bestOf: false, duration, peaks, uploaded: true, addedBy: state.user, addedAt: Date.now() };
         state.loops.push(loop);
         added.push(loop);
         save();
@@ -202,19 +211,32 @@ async function analyse(file, count = 160) {
 export async function setLoopStatus(loopId, status, note = null) {
   const loop = getLoop(loopId);
   if (!loop) return 0;
+  const previous = loop.status;
   loop.status = status;
   loop.statusNote = note ?? "";
   loop.statusAt = status === "open" ? 0 : Date.now();
   let pulledFrom = 0;
-  if (status === "placed") {
+  if (status === "placed" && previous !== "placed") {
+    loop.placedPackIds = [];
     for (const pack of state.packs) {
       if (!pack.loopIds.includes(loopId)) continue;
+      loop.placedPackIds.push(pack.id);
       pack.loopIds = pack.loopIds.filter((id) => id !== loopId);
       pulledFrom++;
     }
+  } else if (status === "open" && previous === "placed") {
+    for (const packId of loop.placedPackIds ?? []) {
+      const pack = state.packs.find((item) => item.id === packId);
+      if (!pack || pack.loopIds.includes(loopId)) continue;
+      pack.loopIds.push(loopId);
+      pulledFrom++;
+    }
+    loop.placedPackIds = [];
   }
   save();
-  return pulledFrom;
+  return status === "open" && previous === "placed"
+    ? { pulledFrom: 0, restoredTo: pulledFrom }
+    : { pulledFrom, restoredTo: 0 };
 }
 
 export async function deleteLoop(loopId) {

@@ -57,8 +57,8 @@ the same names, so the screens never know whether they are live or in the demo:
 `live`, `session`, `signIn`, `signOut`, `init`, `refresh`, `reset`,
 `setErrorHandler`, `users`, `currentUser`, `setUser`, `setName`, `listTags`,
 `tagsById`, `addTag`, `tagUseCount`, `listLoops`, `getLoop`, `untagged`,
-`checkLibraryFiles`, `removeMissingLoops`, `updateLoop`, `audioUrl`, `warm`,
-`cacheAudio`, `addFiles`, `listPacks`, `createPack`,
+`checkLibraryFiles`, `removeMissingLoops`, `updateLoop`, `setBestOf`, `audioUrl`,
+`warm`, `cacheAudio`, `addFiles`, `setLoopStatus`, `listPacks`, `createPack`,
 `deletePack`, `renamePack`, `myId`, `profileOf`, `people`, `setAvatar`,
 `isFavorite`, `favoriteCount`, `favoritesOf`, `toggleFavorite`, `notePackUse`.
 
@@ -81,7 +81,7 @@ the next finished batch replaces it or the page is reloaded.
 |---|---|
 | `profiles` | one row per login: name, avatar (a small JPEG data URL), created_at |
 | `tags` | `id` is `"<group>:<slug>"`, e.g. `genre:rnb`; groups: type, genre, vibe, instrument, artist |
-| `loops` | file name, `dropbox_path`, title, bpm, key, collabs[], tags[], duration, added_by, `status` |
+| `loops` | file name, `dropbox_path`, title, bpm, key, collabs[], tags[], duration, added_by, `status`, `best_of`, `placed_pack_copies` |
 | `packs` | name, loop_ids[], remove_sug, remove_collabs, dropbox_path, link, uses, last_used_at |
 | `pack_favorites` | (pack_id, user_id) |
 
@@ -99,9 +99,12 @@ off (it checks the caller itself against `profiles`).
 | Action | What it does |
 |---|---|
 | `me` | the caller's profile |
-| `upload_link` | picks the free path in `/Library`, returns a one-hour direct upload link **and that path** |
+| `upload_link` | rejects an exact-name duplicate, then returns a one-hour direct upload link and its `/Library` path |
 | `library_files` | what is in `/Library` |
 | `delete_file` | removes one file, inside `/Library` only |
+| `set_loop_status` | reserves or places a loop; placing removes its pack copies and remembers their exact names |
+| `set_loop_status_v2` | compatibility gate: the web app uses this name before any reversible placement |
+| `undo_loop_status` | returns a placed loop to Open and restores its saved copies to surviving packs |
 | `play_links` | four-hour playback links, up to 25 at a time |
 | `create_pack` | copies loops into `/Packs/<name>` under cleaned names, shares the folder, writes the pack row |
 | `rename_pack` | moves the Dropbox folder (the share link survives) and updates the row |
@@ -116,10 +119,15 @@ off (it checks the caller itself against `profiles`).
 - **placed** — sold exclusively. Setting this pulls the loop out of every pack
   (its copy is deleted from each pack's Dropbox folder and the id removed from
   `loop_ids`), and Build never offers it again. `status_note` holds where it landed.
+  The exact removed names are kept in `placed_pack_copies`; returning to Open
+  restores those copies and memberships to every surviving pack.
 
 Status changes go through the server function (`set_loop_status`), because
 placing touches Dropbox and other packs. The confirmation is a second tap that
-says how many packs it will leave.
+says how many packs it will leave. A placed loop can only move back to Open.
+
+`best_of` is deliberately separate from tags and pack favourites: it is a
+shortlist on loops, ready for a future always-current Dropbox folder.
 
 ## Names and handles are never lost
 

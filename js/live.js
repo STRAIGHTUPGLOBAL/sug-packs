@@ -101,6 +101,7 @@ const fromLoop = (row) => ({
   key: row.key,
   collabs: row.collabs ?? [],
   tags: row.tags ?? [],
+  bestOf: Boolean(row.best_of),
   duration: row.duration ?? 0,
   status: row.status ?? "open",
   statusNote: row.status_note ?? "",
@@ -244,6 +245,18 @@ export function updateLoop(id, changes) {
   });
 }
 
+export async function setBestOf(id, bestOf) {
+  const loop = getLoop(id);
+  if (!loop) return false;
+  const { data, error } = await sb.from("loops").update({ best_of: Boolean(bestOf) }).eq("id", id).select("best_of").single();
+  if (error) {
+    if (/best_of/i.test(error.message)) throw new Error("Best of needs database update 5.");
+    throw new Error(error.message);
+  }
+  loop.bestOf = Boolean(data.best_of);
+  return loop.bestOf;
+}
+
 // Gone for good: the file in Dropbox and the row. Packs keep their own copies.
 export async function deleteLoop(loopId) {
   await server("delete_loop", { loopId });
@@ -254,9 +267,18 @@ export async function deleteLoop(loopId) {
 
 // open · reserved · placed. Placing a loop pulls it out of every pack.
 export async function setLoopStatus(loopId, status, note = null) {
-  const { pulledFrom } = await server("set_loop_status", { loopId, status, note });
+  const previous = getLoop(loopId)?.status;
+  if (previous === "placed" && status === "open") {
+    const { restoredTo = 0 } = await server("undo_loop_status", { loopId });
+    await init();
+    return { pulledFrom: 0, restoredTo };
+  }
+  // Placing must use the reversible server version. An older deployed function
+  // returns Unknown action instead of removing pack copies without an undo log.
+  const action = status === "placed" ? "set_loop_status_v2" : "set_loop_status";
+  const { pulledFrom } = await server(action, { loopId, status, note });
   await init();
-  return pulledFrom;
+  return { pulledFrom, restoredTo: 0 };
 }
 
 // Playback links last four hours; share in-flight batches between the Library,

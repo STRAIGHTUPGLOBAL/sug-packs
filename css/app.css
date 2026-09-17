@@ -307,6 +307,7 @@ body:has(.dock:not([hidden])) .bar { bottom: calc(var(--dock-h, 150px) + 12px); 
 }
 .chip:hover { background: var(--surface-hover); }
 .chip:active { transform: scale(0.93); transition-duration: 80ms; }
+.chip:disabled { opacity: 0.32; pointer-events: none; }
 .chip.is-on { border-color: transparent; background: var(--accent); color: #fff; }
 .chip.is-off { opacity: 0.28; pointer-events: none; }
 .chip.pop { animation: chip-pop 380ms var(--spring); }
@@ -512,6 +513,10 @@ button.thumb:active { transform: scale(0.92); transition-duration: 80ms; }
 .avatar-edit .icon { width: 16px; height: 16px; }
 
 /* Reserved and placed */
+.sheet-tools { display: flex; margin: 8px 0 20px; }
+.best-chip .icon { width: 15px; height: 15px; }
+.status-chips { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+.status-note { margin-top: 10px; }
 .status-chip .icon { width: 15px; height: 15px; }
 .status-chip.is-reserved { border-color: transparent; background: var(--amber); color: #07070A; }
 .status-chip.is-placed { border-color: transparent; background: rgba(255, 122, 122, 0.22); color: var(--rose); }
@@ -519,11 +524,45 @@ button.thumb:active { transform: scale(0.92); transition-duration: 80ms; }
 .state .icon { width: 14px; height: 14px; }
 .state--reserved { color: var(--amber); }
 .state--placed { color: var(--rose); }
+.state--best { color: var(--accent-hover); }
 .state--missing { color: var(--rose); }
 .row.is-placed .row-title { color: var(--text-2); }
 .row.is-placed .thumb { opacity: 0.55; }
 .row.is-missing .row-title { color: var(--text-2); }
 .row.is-missing .thumb { opacity: 0.42; }
+
+/* The loop sheet keeps playback close to its title. A second tap stops and
+   resets; this control is for deliberately reaching the stems later on. */
+.loop-player { padding: 0 20px 10px; }
+.loop-player input[type="range"] {
+  width: 100%;
+  height: 24px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.loop-player input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent-hover) var(--played, 0%), var(--surface-strong) var(--played, 0%));
+}
+.loop-player input[type="range"]::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  margin-top: -6.5px;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.42);
+}
+.loop-player input[type="range"]::-moz-range-track { height: 3px; border-radius: 2px; background: var(--surface-strong); }
+.loop-player input[type="range"]::-moz-range-progress { height: 3px; border-radius: 2px; background: var(--accent-hover); }
+.loop-player input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: #fff; }
+.loop-player-time { display: flex; justify-content: space-between; color: var(--text-3); font-size: 12px; }
 
 /* Upload queue: one calm summary in the Library, details in a sheet. */
 .upload-summary { margin-top: 20px; }

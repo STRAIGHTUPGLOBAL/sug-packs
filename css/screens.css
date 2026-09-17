@@ -293,6 +293,7 @@
 .sheet-sub { margin-top: 2px; color: var(--text-3); font-size: 14px; }
 .sheet-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 20px 24px; }
 .sheet-body .tag-groups { margin-top: 8px; }
+.sheet-tools + .tag-groups { margin-top: 0; }
 .sheet-body .list-label:first-child { margin-top: 0; }
 .sheet-foot { display: flex; gap: 10px; padding: 12px 20px calc(var(--safe-bottom) + 16px); border-top: 1px solid var(--hairline); }
 .sheet-foot .button { flex: 1; }

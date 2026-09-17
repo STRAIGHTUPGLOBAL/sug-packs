@@ -18,6 +18,7 @@ const emit = () => listeners.forEach((fn) => fn(state()));
 export function state() {
   return {
     id: currentId,
+    sourceId,
     playing: !audio.paused,
     loading,
     time: audio.currentTime || 0,
@@ -78,7 +79,7 @@ export function toggle(loop) {
     return Promise.resolve(false);
   }
   if (currentId === loop.id && !audio.paused) {
-    audio.pause();
+    stop();
     return Promise.resolve(false);
   }
   return play(loop);
@@ -87,6 +88,9 @@ export function toggle(loop) {
 export function stop() {
   request++;
   audio.pause();
+  // A second tap means stop, not pause. The next play always starts at the
+  // arrangement, never halfway through the stems later in the file.
+  try { audio.currentTime = 0; } catch { /* no source loaded yet */ }
   currentId = null;
   loading = false;
   emit();

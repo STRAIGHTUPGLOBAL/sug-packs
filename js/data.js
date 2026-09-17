@@ -12,7 +12,7 @@ export const {
   users, currentUser, setUser, setName,
   listTags, tagsById, addTag, tagUseCount,
   listLoops, getLoop, untagged, checkLibraryFiles, removeMissingLoops,
-  updateLoop, audioUrl, warm, cacheAudio, addFiles, deleteLoop, setLoopStatus,
+  updateLoop, setBestOf, audioUrl, warm, cacheAudio, addFiles, deleteLoop, setLoopStatus,
   listPacks, createPack, deletePack, renamePack,
   myId, profileOf, people, setAvatar, setPersonName,
   isFavorite, favoriteCount, favoritesOf, toggleFavorite, notePackUse,
