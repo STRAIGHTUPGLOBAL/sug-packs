@@ -167,6 +167,12 @@ Nothing about who worked on a loop is ever thrown away.
 - **Playback is cached ahead, but deliberately bounded.** New uploads go straight
   into the browser cache from their local `File`; Library and Swipe cache up to
   eight likely next loops. Twelve files / 192 MB is the device-wide ceiling.
+- **The iOS Home Screen app deliberately uses a contained viewport and opaque
+  status bar.** WebKit can mispaint `bottom: 0` above a phantom strip in
+  standalone mode when `viewport-fit=cover` and `black-translucent` are paired.
+  Safari tabs do not reproduce it, so do not restore that pair for aesthetics.
+  The version query in `index.html` and the manifest `start_url` is bumped when
+  installed-app chrome changes, so iOS cannot recombine an old shell and new CSS.
 - **Dropbox can be edited behind the app's back.** Opening Library compares its
   paths with `/Library`; missing rows are excluded from Build and can be removed
   together. The deployed `delete_loop` action already tolerates a missing file.
