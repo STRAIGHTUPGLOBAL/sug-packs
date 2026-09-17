@@ -11,7 +11,6 @@ import { GROUPS, lookalike, matches, slug, tagStyle } from "./tags.js";
 import { ago, closeSheet, copyText, esc, icon, openSheet, replaceSheet, toast } from "./ui.js";
 
 const view = document.querySelector("[data-view]");
-const topbar = document.querySelector("[data-topbar]");
 const TABS = [
   { id: "build", label: "Build", icon: "build" },
   { id: "library", label: "Library", icon: "library" },
@@ -63,7 +62,6 @@ async function route() {
   lastPage = page;
 
   const immersive = ["swipe", "pack"].includes(page);
-  setTopbar(!immersive);
   if (immersive) hideDock();
   if (page === "swipe") cleanup = swipe.renderSwipe(view, go);
   else if (page === "pack") cleanup = swipe.renderPack(view, go);
@@ -78,13 +76,12 @@ const pageClass = () => "page enter";
 
 const dock = document.querySelector("[data-dock]");
 
-function setTopbar(show) {
-  topbar.hidden = !show;
-  document.body.classList.toggle("has-topbar", show);
-}
-
 function header(active, left) {
   return `<header class="header">${left}</header>`;
+}
+
+function brandedTitle(title) {
+  return `<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="227"><h1 class="header-title">${title}</h1></div>`;
 }
 
 // One persistent bottom navigation. Page-specific controls stay in the page so
@@ -168,7 +165,6 @@ function renderSignIn() {
   cleanup?.();
   cleanup = null;
   hideDock();
-  setTopbar(false);
   lastPage = null;
   view.classList.remove("is-leaving", "is-leaving-all");
   view.innerHTML = `
@@ -226,7 +222,7 @@ function renderBuild() {
 
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("build", '<h1 class="header-title">Build</h1>')}
+      ${header("build", brandedTitle("Build"))}
       ${resumable ? `
         <div class="list list--spaced">
           <a class="row row--media" href="#/swipe">
@@ -391,7 +387,7 @@ const LIBRARY_SORTS = { recent: "Newest", name: "A–Z", oldest: "Oldest" };
 function renderLibrary() {
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("library", '<h1 class="header-title">Library</h1>')}
+      ${header("library", brandedTitle("Library"))}
       <div class="page-controls">
         <div class="search-row">
           <label class="search">${icon("search")}<input type="search" data-lib-query placeholder="Search loops or tags" value="${esc(libraryQuery)}" autocomplete="off"></label>
@@ -954,7 +950,7 @@ function matchesQuery(pack, q) {
 function renderPacks() {
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${header("packs", '<h1 class="header-title">Packs</h1>')}
+      ${header("packs", brandedTitle("Packs"))}
       <div class="page-controls">
         <div class="search-row">
           <label class="search">${icon("search")}<input type="search" data-pack-query placeholder="Search packs and loops" value="${esc(packQuery)}" autocomplete="off"></label>
@@ -1284,7 +1280,7 @@ function renderProfile(id) {
   view.innerHTML = `
     <section class="${pageClass()}">
       ${header("me", own
-        ? '<h1 class="header-title">You</h1>'
+        ? brandedTitle("You")
         : `<div class="header-back"><a class="icon-button" href="#/me" aria-label="Back">${icon("back")}</a><h1 class="header-title">${esc(person.name)}</h1></div>`)}
       <div class="profile">
         ${own ? `

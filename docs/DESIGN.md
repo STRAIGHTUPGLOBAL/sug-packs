@@ -7,8 +7,8 @@ element, the element goes.
 ## The frame
 
 - One column, 640px maximum, 20px side gutters, phone first.
-- One small persistent SUG Packs logo bar, one page title, and one main action
-  per screen. The logo is branding, never the main element.
+- One page title with a small app mark beside it, and one main action per screen.
+  The mark is branding, never the main element.
 - Geist, one typeface. No uppercase mono labels, no counts on chips, no
   decorative rules or dividers beyond the hairlines inside lists.
 - Near-black ground (`--bg`), one soft blue light at the top of the page, and
@@ -70,8 +70,8 @@ Intentional and responsive, never decorative:
 - **Splash:** logotype eases in, a small blue wheel turns, both ease out once
   the data, fonts and logo are ready (minimum ~1.4s).
 - **Screens:** the old content lifts away (~180ms), the new page rises in block
-  by block (`.enter`). Between tabs the logo and nav stay put while the nav
-  highlight slides. A horizontal swipe moves one adjacent tab in that direction.
+  by block (`.enter`). Between tabs the nav stays put while its highlight slides.
+  A horizontal swipe moves one adjacent tab in that direction.
 - **Lists** stagger on first paint only (`.stagger`). Repaints never replay an
   entrance; Build chips update in place with a small spring pop.
 - **Swipe:** the next card rises as the top one flies off, and its loop starts
@@ -93,8 +93,8 @@ Intentional and responsive, never decorative:
 
 ## The logotype and the icon
 
-- The logotype (`assets/sug-packs-logotype.png`) appears on the splash and in a
-  compact sticky bar shared by all four main pages.
+- The logotype (`assets/sug-packs-logotype.png`) appears on the splash. A 30px
+  app mark sits beside the title on each of the four main pages.
 - iOS uses `assets/icon-180-v2.png`; installed-app manifests also carry the
   512px version. Both use the straight globe on full-bleed purple with a subtle
   dark gradient toward the bottom.

@@ -53,11 +53,6 @@ a { color: inherit; text-decoration: none; }
   margin: 0 auto;
   padding: calc(var(--safe-top) + 12px) var(--gutter) calc(var(--safe-bottom) + 40px);
 }
-body.has-topbar .view {
-  min-height: 100svh;
-  padding-top: calc(var(--safe-top) + 58px);
-}
-
 .page--with-bar { padding-bottom: 96px; }
 .page--with-cta { padding-bottom: 128px; }
 
@@ -110,31 +105,6 @@ body.has-topbar .view {
 .view.is-leaving > * > :not(.header) { opacity: 0; transform: translateY(-8px); transition: opacity 160ms ease, transform 180ms ease; }
 .view.is-leaving > .swipe, .view.is-leaving.is-leaving-all > * > .header { opacity: 0; transform: translateY(-8px); transition: opacity 160ms ease, transform 180ms ease; }
 
-/* A small persistent brand bar; the page title remains the main heading. */
-
-.app-topbar {
-  position: fixed;
-  z-index: 38;
-  top: 0;
-  left: 0;
-  right: 0;
-  display: grid;
-  place-items: end center;
-  height: calc(var(--safe-top) + 44px);
-  padding: var(--safe-top) var(--gutter) 10px;
-  border-bottom: 1px solid var(--hairline);
-  background: rgba(7, 7, 10, 0.78);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  pointer-events: none;
-}
-.app-topbar img {
-  display: block;
-  width: 84px;
-  height: auto;
-  margin: 0 auto;
-}
-
 /* Page title. */
 
 .header {
@@ -146,6 +116,8 @@ body.has-topbar .view {
   margin-bottom: 16px;
 }
 .header-title { font-size: 28px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
+.header-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.header-mark { display: block; width: 30px; height: auto; }
 .header-back { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .header-back .header-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 

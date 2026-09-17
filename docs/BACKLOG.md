@@ -71,7 +71,7 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Done
 
-- [x] Mobile shell and finding: a small branded bar sits above real page titles,
+- [x] Mobile shell and finding: a small app mark sits beside real page titles,
       larger tabs stay fixed and support horizontal swipes, search stays at the
       top, Build/Library filter Best of, and selected tags use stable unique hues.
 - [x] Strict Build filtering: every selected tag is required, including several
