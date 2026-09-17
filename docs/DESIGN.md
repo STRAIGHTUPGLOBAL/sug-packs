@@ -97,9 +97,9 @@ Intentional and responsive, never decorative:
 
 - The logotype (`assets/sug-packs-logotype.png`) appears on the splash. A 30px
   app mark sits beside the title on each of the four main pages.
-- iOS uses `assets/icon-180-v2.png`; installed-app manifests also carry the
-  512px version. Both use the straight globe on full-bleed purple with a subtle
-  dark gradient toward the bottom.
+- iOS uses `assets/icon-180-v3.png`; installed-app manifests also carry the
+  512px version. Both use the straight white globe on full-bleed purple with a
+  subtle dark gradient toward the bottom.
 - Owner's source files stay in `assets/` untouched; the web copies are generated
   from them (crop to the visible area, resize, and for the home screen centre it
   on the app's near-black).

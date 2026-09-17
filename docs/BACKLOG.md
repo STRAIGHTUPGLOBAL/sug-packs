@@ -79,7 +79,7 @@ Keep entries short: goal, why, and how you will know it works.
       bottom dock is not lifted by WebKit's standalone safe-area bug.
 - [x] Strict Build filtering: every selected tag is required, including several
       Vibe or Genre choices from the same group.
-- [x] Home-screen icon v2: straight globe, full-bleed purple, subtle dark base.
+- [x] Home-screen icon v3: white straight globe, full-bleed purple, subtle dark base.
 - [x] Mobile logging pass: stop resets playback, loop sheets have a seek bar,
       Best of is a real loop flag, Placed can safely return to Open, exact-name
       duplicates are refused, the sheet pulls down to dismiss, and its footer

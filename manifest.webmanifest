@@ -1,12 +1,12 @@
 {
   "name": "SUG Packs",
   "short_name": "Packs",
-  "start_url": "./?app=20260917-5#/build",
+  "start_url": "./?app=20260917-6#/build",
   "display": "standalone",
   "background_color": "#0B0B10",
   "theme_color": "#0B0B10",
   "icons": [
-    { "src": "assets/icon-180-v2.png", "sizes": "180x180", "type": "image/png", "purpose": "any maskable" },
-    { "src": "assets/icon-512-v2.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "assets/icon-180-v3.png", "sizes": "180x180", "type": "image/png", "purpose": "any maskable" },
+    { "src": "assets/icon-512-v3.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }
