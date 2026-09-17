@@ -7,8 +7,8 @@ element, the element goes.
 ## The frame
 
 - One column, 640px maximum, 20px side gutters, phone first.
-- One persistent SUG Packs logo bar and one main action per screen. The bottom
-  tabs identify the main pages, so those page names are not repeated as titles.
+- One small persistent SUG Packs logo bar, one page title, and one main action
+  per screen. The logo is branding, never the main element.
 - Geist, one typeface. No uppercase mono labels, no counts on chips, no
   decorative rules or dividers beyond the hairlines inside lists.
 - Near-black ground (`--bg`), one soft blue light at the top of the page, and
@@ -20,19 +20,18 @@ element, the element goes.
 
 The app is used one-handed, walking around. Everything you reach for often sits
 at the **bottom**: one fixed-height glass navigation, centred and big enough for
-a thumb. Its tiny labels identify the current page without a repeated heading.
-Search, upload, filters and sort sit in their own fixed tray just above the nav,
-never inside it. Focusing search lifts that tray under the logo and reveals its
-filters, then it returns to thumb reach when search is done.
+a thumb. Its tiny labels reinforce the current page. Search, upload, filters and
+sort stay in normal page flow directly beneath the heading. They never move when
+the keyboard opens and never share a containing layer with the dock.
 
 Four tabs: Build, Library, Packs, You. "You" is your own profile — picture,
 name, counts, favourites, your packs, the other people, and the account rows.
 
 The dock is one fixed element outside the page (`[data-dock]`), updated via
-`setDock(active)`. Its height is measured into `--dock-h` so the page, control
-tray and floating bar keep clear of it. Page tools never change its footprint.
-The swipe deck and the pack page hide it: they are full-screen tasks with their
-own single action.
+`setDock(active)`. Its height is measured into `--dock-h` so the page and
+floating bar keep clear of it. Horizontal swipes move between adjacent tabs.
+The swipe deck and the pack page hide the dock: they are full-screen tasks with
+their own single action.
 
 ## Colour means something
 
@@ -43,12 +42,14 @@ own single action.
 | Green | copied, done |
 | Rose | destructive (sign out, delete, reset) |
 | Gold | a Best of loop |
-| Blue / cyan / magenta / green / orange | selected Type / Genre / Vibe / Instrument / Artist tags |
+| Stable hue from the tag id | that exact selected tag, regardless of category |
 | White at three strengths | `--text`, `--text-2`, `--text-3` |
 
 Cover art is the only other colour. `cover.js` turns a name into three OKLCH
 lights over a deep base, so every loop and pack has its own identity, the same
 on every screen and device. Olive and mustard hues are skipped; they look muddy.
+Selected pills use a translucent fill and a stronger border rather than a flat
+solid block.
 
 ## Copy
 
@@ -70,7 +71,7 @@ Intentional and responsive, never decorative:
   the data, fonts and logo are ready (minimum ~1.4s).
 - **Screens:** the old content lifts away (~180ms), the new page rises in block
   by block (`.enter`). Between tabs the logo and nav stay put while the nav
-  highlight slides.
+  highlight slides. A horizontal swipe moves one adjacent tab in that direction.
 - **Lists** stagger on first paint only (`.stagger`). Repaints never replay an
   entrance; Build chips update in place with a small spring pop.
 - **Swipe:** the next card rises as the top one flies off, and its loop starts
@@ -83,7 +84,8 @@ Intentional and responsive, never decorative:
 
 - `.thumb` — cover art square, three sizes, doubles as the play button.
 - `.avatar` — round, image or initials ("12" stays whole, longer names use one letter).
-- `.chip` — tag or filter; `is-on` is blue, `is-off` fades to 28%.
+- `.chip` — tag or filter; `is-on` is translucent with an opaque border,
+  per-tag hues are deterministic, and `is-off` fades to 28%.
 - `.row` inside `.list` — the grouped list row; `.row--media` for a thumb on the left.
 - `.bar` — the floating glass bar (a count plus two actions, Build only).
 - `.cta` — a single main action over a fade, never inside a container.
@@ -93,8 +95,9 @@ Intentional and responsive, never decorative:
 
 - The logotype (`assets/sug-packs-logotype.png`) appears on the splash and in a
   compact sticky bar shared by all four main pages.
-- The app mark (`assets/app-mark.png`) remains for app icons and places where a
-  square mark is actually needed.
+- iOS uses `assets/icon-180-v2.png`; installed-app manifests also carry the
+  512px version. Both use the straight globe on full-bleed purple with a subtle
+  dark gradient toward the bottom.
 - Owner's source files stay in `assets/` untouched; the web copies are generated
   from them (crop to the visible area, resize, and for the home screen centre it
   on the app's near-black).

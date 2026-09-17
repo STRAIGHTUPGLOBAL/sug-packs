@@ -71,9 +71,12 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Done
 
-- [x] Mobile shell and Library finding: a sticky logo replaces repeated page
-      headings, larger tab icons stay fixed, thumb-reachable search lifts when
-      active, and Library adds tag / Best of filters plus Newest / A–Z / Oldest.
+- [x] Mobile shell and finding: a small branded bar sits above real page titles,
+      larger tabs stay fixed and support horizontal swipes, search stays at the
+      top, Build/Library filter Best of, and selected tags use stable unique hues.
+- [x] Strict Build filtering: every selected tag is required, including several
+      Vibe or Genre choices from the same group.
+- [x] Home-screen icon v2: straight globe, full-bleed purple, subtle dark base.
 - [x] Mobile logging pass: stop resets playback, loop sheets have a seek bar,
       Best of is a real loop flag, Placed can safely return to Open, exact-name
       duplicates are refused, and the bottom navigation no longer gets rebuilt.

@@ -55,7 +55,7 @@ a { color: inherit; text-decoration: none; }
 }
 body.has-topbar .view {
   min-height: 100svh;
-  padding-top: calc(var(--safe-top) + 76px);
+  padding-top: calc(var(--safe-top) + 58px);
 }
 
 .page--with-bar { padding-bottom: 96px; }
@@ -97,7 +97,6 @@ body.has-topbar .view {
 @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
 
 .enter > * { animation: rise 600ms var(--ease-out) backwards; }
-.enter > .page-controls { animation: none; }
 .enter > :nth-child(2) { animation-delay: 50ms; }
 .enter > :nth-child(3) { animation-delay: 100ms; }
 .enter > :nth-child(4) { animation-delay: 150ms; }
@@ -108,12 +107,10 @@ body.has-topbar .view {
 .stagger > * { animation: rise 520ms var(--ease-out) backwards; animation-delay: calc(min(var(--i, 0), 12) * 30ms + 120ms); }
 
 .view > * { transition: opacity 180ms ease, transform 180ms ease; }
-.view.is-leaving > * > :not(.header):not(.page-controls) { opacity: 0; transform: translateY(-8px); transition: opacity 160ms ease, transform 180ms ease; }
-.view.is-leaving > * > .page-controls { opacity: 0; transition: opacity 160ms ease; }
+.view.is-leaving > * > :not(.header) { opacity: 0; transform: translateY(-8px); transition: opacity 160ms ease, transform 180ms ease; }
 .view.is-leaving > .swipe, .view.is-leaving.is-leaving-all > * > .header { opacity: 0; transform: translateY(-8px); transition: opacity 160ms ease, transform 180ms ease; }
 
-/* The logo is the one persistent page heading. The tab labels below say where
-   you are, so the content does not repeat Build / Library / Packs / You. */
+/* A small persistent brand bar; the page title remains the main heading. */
 
 .app-topbar {
   position: fixed;
@@ -121,27 +118,32 @@ body.has-topbar .view {
   top: 0;
   left: 0;
   right: 0;
-  height: calc(var(--safe-top) + 64px);
-  padding: calc(var(--safe-top) + 20px) var(--gutter) 14px;
-  background: linear-gradient(180deg, var(--bg) 62%, rgba(7, 7, 10, 0));
+  display: grid;
+  place-items: end center;
+  height: calc(var(--safe-top) + 44px);
+  padding: var(--safe-top) var(--gutter) 10px;
+  border-bottom: 1px solid var(--hairline);
+  background: rgba(7, 7, 10, 0.78);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
   pointer-events: none;
 }
 .app-topbar img {
   display: block;
-  width: 126px;
+  width: 84px;
   height: auto;
   margin: 0 auto;
 }
 
-/* Contextual header: only used when looking at another person's profile. */
+/* Page title. */
 
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 56px;
-  margin-bottom: 20px;
+  min-height: 42px;
+  margin-bottom: 16px;
 }
 .header-title { font-size: 28px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
 .header-back { display: flex; align-items: center; gap: 4px; min-width: 0; }
@@ -190,8 +192,8 @@ body.has-topbar .view {
 .nav-item:active .icon { transform: scale(0.88); }
 .nav-item .icon { transition: transform 200ms var(--ease-out); }
 
-/* One constant-height navigation dock. Page-specific tools are a separate
-   fixed layer above it, so Packs can never resize or reposition the nav. */
+/* One constant navigation layer outside every page. No page content becomes a
+   containing block for it; this matters on mobile Safari. */
 .dock {
   position: fixed;
   z-index: 40;
@@ -200,12 +202,9 @@ body.has-topbar .view {
   bottom: 0;
   display: grid;
   justify-items: center;
-  gap: 10px;
-  padding: 12px var(--gutter) max(8px, var(--safe-bottom));
+  padding: 8px var(--gutter) max(8px, var(--safe-bottom));
   background: linear-gradient(180deg, rgba(7, 7, 10, 0), rgba(7, 7, 10, 0.88) 34%, var(--bg) 64%);
   pointer-events: none;
-  contain: layout paint;
-  transform: translateZ(0);
   animation: dock-in 520ms var(--ease-out);
 }
 .dock > * { pointer-events: auto; }
@@ -213,8 +212,7 @@ body.has-topbar .view {
 
 /* Content clears the dock; the floating bar sits just above it. */
 body:has(.dock:not([hidden])) .view { padding-bottom: calc(var(--dock-h, 104px) + 28px); }
-body:has(.dock:not([hidden])) .view:has(.page-controls) { padding-bottom: calc(var(--dock-h, 104px) + var(--controls-h, 132px) + 28px); }
-body:has(.dock:not([hidden])) .bar { bottom: calc(var(--dock-h, 150px) + 12px); }
+body:has(.dock:not([hidden])) .bar { bottom: calc(var(--dock-h, 104px) + 12px); }
 
 /* Buttons ------------------------------------------------------------------ */
 
@@ -302,30 +300,12 @@ body:has(.dock:not([hidden])) .bar { bottom: calc(var(--dock-h, 150px) + 12px); 
 .search input::placeholder { color: var(--text-3); }
 .search input::-webkit-search-cancel-button { display: none; }
 .page-controls {
-  position: fixed;
-  z-index: 35;
-  left: 50%;
-  bottom: calc(var(--dock-h, 104px) + 8px);
-  width: min(calc(100% - 2 * var(--gutter)), var(--column));
-  max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 104px);
-  padding: 12px;
-  overflow-y: auto;
-  border: 1px solid var(--hairline);
-  border-radius: 20px;
-  background: rgba(18, 18, 24, 0.82);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.38);
-  transform: translateX(-50%);
-  transition: top 360ms var(--ease-out), bottom 360ms var(--ease-out), box-shadow 240ms ease;
+  position: relative;
+  z-index: 2;
 }
-.page-controls.is-searching {
-  top: calc(var(--safe-top) + 68px);
-  bottom: auto;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.52);
-}
-.page-controls .filters { margin: 10px 0 0; }
-.page-controls + .tag-groups { margin-top: 0; }
+.page-controls .filters { margin: 12px 0 20px; }
+.page-controls + .tag-groups { margin-top: 20px; }
+.quick-filters { display: flex; margin-top: 12px; }
 
 .library-filters { padding: 14px 0 4px; }
 .filter-head { display: flex; align-items: center; justify-content: space-between; margin: 0 4px 10px; color: var(--text-3); font-size: 14px; font-weight: 500; }
@@ -359,13 +339,21 @@ body:has(.dock:not([hidden])) .bar { bottom: calc(var(--dock-h, 150px) + 12px); 
 .chip:hover { background: var(--surface-hover); }
 .chip:active { transform: scale(0.93); transition-duration: 80ms; }
 .chip:disabled { opacity: 0.32; pointer-events: none; }
-.chip.is-on { border-color: transparent; background: var(--accent); color: #fff; }
-.chip--type.is-on { background: var(--tag-type); color: #fff; }
-.chip--genre.is-on { background: var(--tag-genre); color: #071012; }
-.chip--vibe.is-on { background: var(--tag-vibe); color: #fff; }
-.chip--instrument.is-on { background: var(--tag-instrument); color: #071009; }
-.chip--artist.is-on { background: var(--tag-artist); color: #160B06; }
-.chip--best.is-on, .best-chip.is-on { background: var(--gold); color: #171006; }
+.chip.is-on {
+  border-color: rgba(104, 117, 245, 0.88);
+  background: rgba(73, 84, 230, 0.17);
+  color: #C7CBFF;
+}
+.chip--tag.is-on {
+  border-color: hsl(var(--tag-h) 78% 68% / 0.9);
+  background: hsl(var(--tag-h) 72% 56% / 0.16);
+  color: hsl(var(--tag-h) 88% 82%);
+}
+.chip--best.is-on, .best-chip.is-on {
+  border-color: rgba(240, 184, 75, 0.9);
+  background: rgba(240, 184, 75, 0.16);
+  color: #FFD98D;
+}
 .chip.is-off { opacity: 0.28; pointer-events: none; }
 .chip.pop { animation: chip-pop 380ms var(--spring); }
 .chip--add { border-style: dashed; background: none; color: var(--text-3); padding: 0 12px; }

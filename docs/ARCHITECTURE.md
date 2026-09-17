@@ -160,6 +160,10 @@ Nothing about who worked on a loop is ever thrown away.
 - **Phones need one tap before audio plays**; after that each card plays itself.
 - **Play toggles stop, not pause.** Stopping resets to 0:00; opening a loop adds
   the deliberate seek control needed to reach stems later in the same file.
+- **Build filters are strict AND.** Every selected tag must exist on a loop,
+  including multiple tags from one group (Dark + Aggressive means both).
+- **Tag colour follows the tag id, not its group.** `tagStyle()` hashes the id to
+  one stable hue, so the growing vocabulary remains visually recognizable.
 - **Playback is cached ahead, but deliberately bounded.** New uploads go straight
   into the browser cache from their local `File`; Library and Swipe cache up to
   eight likely next loops. Twelve files / 192 MB is the device-wide ceiling.

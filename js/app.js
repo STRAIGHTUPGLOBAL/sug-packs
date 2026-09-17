@@ -7,7 +7,7 @@ import * as store from "./data.js";
 import * as swipe from "./swipe.js";
 import * as uploads from "./uploads.js";
 import { packName } from "./names.js";
-import { GROUPS, lookalike, matches, slug } from "./tags.js";
+import { GROUPS, lookalike, matches, slug, tagStyle } from "./tags.js";
 import { ago, closeSheet, copyText, esc, icon, openSheet, replaceSheet, toast } from "./ui.js";
 
 const view = document.querySelector("[data-view]");
@@ -27,6 +27,7 @@ let routeToken = 0;
 let signedIn = false;
 const selected = new Set();
 let tagQuery = "";
+let buildBestOnly = false;
 let libraryQuery = "";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -42,6 +43,7 @@ async function route() {
   if (!signedIn) return renderSignIn();
   cleanup?.();
   cleanup = null;
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   if (!document.querySelector("[data-sheet]").hidden) closeSheet();
   if (page !== "pack") player.stop();
 
@@ -118,28 +120,29 @@ function settleNav() {
   requestAnimationFrame(() => requestAnimationFrame(() => nav.style.setProperty("--at", nav.dataset.navTo)));
 }
 
-// The tool tray is independent from the nav, but the page still needs to clear
-// its current compact height. Library grows the tray only while search is up.
-function watchControls(controls) {
-  if (!controls) return () => {};
-  let frame = 0;
-  const measure = () => {
-    cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => {
-      if (controls.isConnected && !controls.classList.contains("is-searching")) {
-        document.documentElement.style.setProperty("--controls-h", `${controls.offsetHeight}px`);
-      }
-    });
-  };
-  const observer = new ResizeObserver(measure);
-  observer.observe(controls);
-  measure();
-  return () => {
-    cancelAnimationFrame(frame);
-    observer.disconnect();
-    document.documentElement.style.removeProperty("--controls-h");
-  };
-}
+// The four main tabs behave like native pages: a deliberate horizontal swipe
+// moves one tab at a time. Vertical scrolling and form controls keep priority.
+let tabTouch = null;
+view.addEventListener("pointerdown", (event) => {
+  const page = currentPage();
+  if (!TAB_IDS.includes(page) || !event.isPrimary) return;
+  if (!document.querySelector("[data-sheet]").hidden) return;
+  if (event.target.closest("input, textarea, select, [contenteditable], input[type=range]")) return;
+  tabTouch = { x: event.clientX, y: event.clientY, at: performance.now(), page, pointerId: event.pointerId };
+});
+view.addEventListener("pointerup", (event) => {
+  if (!tabTouch || event.pointerId !== tabTouch.pointerId) return;
+  const start = tabTouch;
+  tabTouch = null;
+  if (start.page !== currentPage() || performance.now() - start.at > 850) return;
+  const dx = event.clientX - start.x;
+  const dy = event.clientY - start.y;
+  if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
+  const index = TAB_IDS.indexOf(start.page);
+  const next = index + (dx < 0 ? 1 : -1);
+  if (next >= 0 && next < TAB_IDS.length) go(`#/${TAB_IDS[next]}`);
+});
+view.addEventListener("pointercancel", () => { tabTouch = null; });
 
 const loopSub = (loop, byId) => {
   const tags = loop.tags.map((id) => byId.get(id)?.label).filter(Boolean);
@@ -223,6 +226,7 @@ function renderBuild() {
 
   view.innerHTML = `
     <section class="${pageClass()}">
+      ${header("build", '<h1 class="header-title">Build</h1>')}
       ${resumable ? `
         <div class="list list--spaced">
           <a class="row row--media" href="#/swipe">
@@ -236,6 +240,9 @@ function renderBuild() {
           <div class="search-row">
             <label class="search">${icon("search")}<input type="search" data-query placeholder="Search tags" value="${esc(tagQuery)}" autocomplete="off"></label>
             <button class="text-button" type="button" data-clear style="opacity:0; pointer-events:none">Clear</button>
+          </div>
+          <div class="quick-filters">
+            <button class="chip chip--best ${buildBestOnly ? "is-on" : ""}" type="button" data-build-best aria-pressed="${buildBestOnly}">${icon("trophy")} Best of</button>
           </div>
         </div>
         <div class="tag-groups" data-groups></div>` : `
@@ -253,11 +260,9 @@ function renderBuild() {
   setDock("build");
 
   const page = view.querySelector(".page");
-  const controls = view.querySelector(".page-controls");
-  const stopWatchingControls = watchControls(controls);
   const groupsEl = view.querySelector("[data-groups]");
   const clearButton = view.querySelector("[data-clear]");
-  const current = () => tagged.filter((l) => matches(l, selected, byId));
+  const current = () => tagged.filter((l) => (!buildBestOnly || l.bestOf) && matches(l, selected, byId));
   let bar = null;
   let lastCount = null;
 
@@ -272,7 +277,7 @@ function renderBuild() {
       return `
         <section>
           <h2 class="group-label">${group.label}</h2>
-          <div class="chips">${groupTags.map((t) => `<button class="chip chip--${t.group}" type="button" data-tag="${t.id}">${esc(t.label)}</button>`).join("")}</div>
+          <div class="chips">${groupTags.map((t) => `<button class="chip chip--tag" style="${tagStyle(t.id)}" type="button" data-tag="${t.id}">${esc(t.label)}</button>`).join("")}</div>
         </section>`;
     }).join("") || `<p class="empty">${tagQuery ? `No tag called “${esc(tagQuery)}”.` : "No tags yet. Tag a loop in the Library."}</p>`;
     paintState();
@@ -281,22 +286,22 @@ function renderBuild() {
   function paintState() {
     groupsEl.querySelectorAll("[data-tag]").forEach((chip) => {
       const id = chip.dataset.tag;
-      const group = byId.get(id)?.group;
-      const others = [...selected].filter((s) => byId.get(s)?.group !== group);
       const on = selected.has(id);
-      const off = !on && !tagged.some((l) => l.tags.includes(id) && matches(l, others, byId));
+      const candidate = new Set(selected);
+      candidate.add(id);
+      const off = !on && !tagged.some((l) => (!buildBestOnly || l.bestOf) && matches(l, candidate, byId));
       chip.classList.toggle("is-on", on);
       chip.classList.toggle("is-off", off);
       chip.setAttribute("aria-pressed", on);
     });
-    clearButton.style.opacity = selected.size ? "1" : "0";
-    clearButton.style.pointerEvents = selected.size ? "auto" : "none";
+    clearButton.style.opacity = selected.size || buildBestOnly ? "1" : "0";
+    clearButton.style.pointerEvents = selected.size || buildBestOnly ? "auto" : "none";
     paintBar();
   }
 
   function paintBar() {
     const count = current().length;
-    if (selected.size && !bar) {
+    if ((selected.size || buildBestOnly) && !bar) {
       page.insertAdjacentHTML("beforeend", `
         <div class="bar">
           <span class="bar-text"><b data-count></b> <span data-count-word></span></span>
@@ -306,7 +311,7 @@ function renderBuild() {
       bar = page.querySelector(".bar");
       page.classList.add("page--with-bar");
       lastCount = null;
-    } else if (!selected.size && bar) {
+    } else if (!selected.size && !buildBestOnly && bar) {
       const leaving = bar;
       bar = null;
       leaving.classList.add("is-leaving");
@@ -328,9 +333,12 @@ function renderBuild() {
   }
 
   const onClick = (event) => {
-    if (controls.classList.contains("is-searching") && !event.target.closest(".page-controls")) {
-      controls.classList.remove("is-searching");
-      view.querySelector("[data-query]")?.blur();
+    if (event.target.closest("[data-build-best]")) {
+      buildBestOnly = !buildBestOnly;
+      const button = view.querySelector("[data-build-best]");
+      button.classList.toggle("is-on", buildBestOnly);
+      button.setAttribute("aria-pressed", buildBestOnly);
+      return paintState();
     }
     const chip = event.target.closest("[data-tag]");
     if (chip) {
@@ -342,7 +350,13 @@ function renderBuild() {
       chip.classList.add("pop");
       return;
     }
-    if (event.target.closest("[data-clear]")) { selected.clear(); return paintState(); }
+    if (event.target.closest("[data-clear]")) {
+      selected.clear();
+      buildBestOnly = false;
+      view.querySelector("[data-build-best]").classList.remove("is-on");
+      view.querySelector("[data-build-best]").setAttribute("aria-pressed", "false");
+      return paintState();
+    }
     if (event.target.closest("[data-start]")) {
       swipe.startSession(current().map((l) => l.id), [...selected]);
       return go("#/swipe");
@@ -357,18 +371,12 @@ function renderBuild() {
     tagQuery = event.target.value;
     renderGroups();
   };
-  const onFocus = (event) => {
-    if (event.target.matches("[data-query]")) controls.classList.add("is-searching");
-  };
   view.addEventListener("click", onClick);
   view.addEventListener("input", onInput);
-  view.addEventListener("focusin", onFocus);
   renderGroups();
   return () => {
     view.removeEventListener("click", onClick);
     view.removeEventListener("input", onInput);
-    view.removeEventListener("focusin", onFocus);
-    stopWatchingControls();
   };
 }
 
@@ -383,11 +391,15 @@ const LIBRARY_SORTS = { recent: "Newest", name: "A–Z", oldest: "Oldest" };
 function renderLibrary() {
   view.innerHTML = `
     <section class="${pageClass()}">
+      ${header("library", '<h1 class="header-title">Library</h1>')}
       <div class="page-controls">
         <div class="search-row">
           <label class="search">${icon("search")}<input type="search" data-lib-query placeholder="Search loops or tags" value="${esc(libraryQuery)}" autocomplete="off"></label>
           <button class="icon-button icon-button--glass" type="button" data-lib-sort aria-label="Sort: ${LIBRARY_SORTS[librarySort]}" title="Sort: ${LIBRARY_SORTS[librarySort]}">${icon("sort")}</button>
           <label class="icon-button icon-button--glass" aria-label="Upload" title="Upload">${icon("plus")}<input type="file" accept="audio/*,.mp3,.wav" multiple hidden data-upload></label>
+        </div>
+        <div class="quick-filters">
+          <button class="chip chip--best ${libraryBestOnly ? "is-on" : ""}" type="button" data-lib-best aria-pressed="${libraryBestOnly}">${icon("trophy")} Best of</button>
         </div>
         <div class="library-filters" data-lib-filters hidden></div>
       </div>
@@ -398,8 +410,6 @@ function renderLibrary() {
   setDock("library");
 
   const results = view.querySelector("[data-results]");
-  const controls = view.querySelector(".page-controls");
-  const stopWatchingControls = watchControls(controls);
   const uploadSlot = view.querySelector("[data-uploads]");
   const filterSlot = view.querySelector("[data-lib-filters]");
   let first = true;
@@ -410,16 +420,18 @@ function renderLibrary() {
   }
 
   function paintFilters() {
+    const bestButton = view.querySelector("[data-lib-best]");
+    bestButton.classList.toggle("is-on", libraryBestOnly);
+    bestButton.setAttribute("aria-pressed", libraryBestOnly);
     filterSlot.hidden = !libraryFiltersOpen;
     if (!libraryFiltersOpen) return;
     const tags = store.listTags().filter((tag) => store.tagUseCount(tag.id) || libraryTags.has(tag.id));
     filterSlot.innerHTML = `
-      <div class="filter-head"><span>Filter</span><button class="text-button" type="button" data-lib-filter-done>Done</button></div>
-      <div class="chips"><button class="chip chip--best ${libraryBestOnly ? "is-on" : ""}" type="button" data-lib-best>${icon("trophy")} Best of</button></div>
+      <div class="filter-head"><span>Filter tags</span><button class="text-button" type="button" data-lib-filter-done>Done</button></div>
       <div class="library-filter-groups">${GROUPS.map((group) => {
         const choices = tags.filter((tag) => tag.group === group.id).sort((a, b) => a.label.localeCompare(b.label));
         if (!choices.length) return "";
-        return `<section><h3 class="group-label">${group.label}</h3><div class="chips">${choices.map((tag) => `<button class="chip chip--${tag.group} ${libraryTags.has(tag.id) ? "is-on" : ""}" type="button" data-lib-tag="${tag.id}">${esc(tag.label)}</button>`).join("")}</div></section>`;
+        return `<section><h3 class="group-label">${group.label}</h3><div class="chips">${choices.map((tag) => `<button class="chip chip--tag ${libraryTags.has(tag.id) ? "is-on" : ""}" style="${tagStyle(tag.id)}" type="button" data-lib-tag="${tag.id}">${esc(tag.label)}</button>`).join("")}</div></section>`;
       }).join("")}</div>
       ${libraryTags.size || libraryBestOnly ? '<button class="text-button filter-clear" type="button" data-lib-filter-clear>Clear filters</button>' : ""}`;
   }
@@ -485,14 +497,9 @@ function renderLibrary() {
   }
 
   const onClick = async (event) => {
-    if (controls.classList.contains("is-searching") && !event.target.closest(".page-controls")) {
-      controls.classList.remove("is-searching");
-      view.querySelector("[data-lib-query]")?.blur();
-    }
     if (event.target.closest("[data-upload-queue]")) { uploads.openQueue(); return; }
     if (event.target.closest("[data-lib-filter-done]")) {
       libraryFiltersOpen = false;
-      controls.classList.remove("is-searching");
       view.querySelector("[data-lib-query]")?.blur();
       paintFilters();
       return;
@@ -552,7 +559,6 @@ function renderLibrary() {
   };
   const onFocus = (event) => {
     if (!event.target.matches("[data-lib-query]")) return;
-    controls.classList.add("is-searching");
     libraryFiltersOpen = true;
     paintFilters();
   };
@@ -587,7 +593,6 @@ function renderLibrary() {
     unsubscribe();
     unsubscribeUploads();
     audioObserver?.disconnect();
-    stopWatchingControls();
   };
 }
 
@@ -693,7 +698,7 @@ function openTagger(ids, index = 0, onDone = () => {}) {
       <section>
         <h3 class="group-label">${group.label}</h3>
         <div class="chips">
-          ${tags.filter((t) => t.group === group.id).sort((a, b) => a.label.localeCompare(b.label)).map((t) => `<button class="chip chip--${t.group} ${draft.has(t.id) ? "is-on" : ""}" type="button" data-t-tag="${t.id}">${esc(t.label)}</button>`).join("")}
+          ${tags.filter((t) => t.group === group.id).sort((a, b) => a.label.localeCompare(b.label)).map((t) => `<button class="chip chip--tag ${draft.has(t.id) ? "is-on" : ""}" style="${tagStyle(t.id)}" type="button" data-t-tag="${t.id}">${esc(t.label)}</button>`).join("")}
           ${adding === group.id ? `
             <form class="new-tag" data-t-new="${group.id}">
               <input data-t-input placeholder="New tag" autocomplete="off" enterkeyhint="done">
@@ -949,6 +954,7 @@ function matchesQuery(pack, q) {
 function renderPacks() {
   view.innerHTML = `
     <section class="${pageClass()}">
+      ${header("packs", '<h1 class="header-title">Packs</h1>')}
       <div class="page-controls">
         <div class="search-row">
           <label class="search">${icon("search")}<input type="search" data-pack-query placeholder="Search packs and loops" value="${esc(packQuery)}" autocomplete="off"></label>
@@ -966,8 +972,6 @@ function renderPacks() {
   setDock("packs");
 
   const listEl = view.querySelector("[data-list]");
-  const controls = view.querySelector(".page-controls");
-  const stopWatchingControls = watchControls(controls);
   let first = true;
 
   function paint() {
@@ -989,10 +993,6 @@ function renderPacks() {
   }
 
   const onClick = async (event) => {
-    if (controls.classList.contains("is-searching") && !event.target.closest(".page-controls")) {
-      controls.classList.remove("is-searching");
-      view.querySelector("[data-pack-query]")?.blur();
-    }
     const fav = event.target.closest("[data-fav]");
     if (fav) {
       event.stopPropagation();
@@ -1019,18 +1019,12 @@ function renderPacks() {
     packQuery = event.target.value;
     paint();
   };
-  const onFocus = (event) => {
-    if (event.target.matches("[data-pack-query]")) controls.classList.add("is-searching");
-  };
   view.addEventListener("click", onClick);
   view.addEventListener("input", onInput);
-  view.addEventListener("focusin", onFocus);
   paint();
   return () => {
     view.removeEventListener("click", onClick);
     view.removeEventListener("input", onInput);
-    view.removeEventListener("focusin", onFocus);
-    stopWatchingControls();
   };
 }
 
@@ -1289,7 +1283,9 @@ function renderProfile(id) {
 
   view.innerHTML = `
     <section class="${pageClass()}">
-      ${own ? "" : header("me", `<div class="header-back"><a class="icon-button" href="#/me" aria-label="Back">${icon("back")}</a><h1 class="header-title">${esc(person.name)}</h1></div>`)}
+      ${header("me", own
+        ? '<h1 class="header-title">You</h1>'
+        : `<div class="header-back"><a class="icon-button" href="#/me" aria-label="Back">${icon("back")}</a><h1 class="header-title">${esc(person.name)}</h1></div>`)}
       <div class="profile">
         ${own ? `
           <button class="avatar-button" type="button" data-avatar aria-label="${person.avatar ? "Edit picture" : "Add a picture"}">

@@ -24,6 +24,17 @@ export const STARTER_TAGS = {
 
 export const slug = (label) => label.toLowerCase().replace(/&/g, "n").replace(/[^a-z0-9]+/g, "");
 
+// Every tag gets one stable hue from its id. This keeps the vocabulary
+// recognizable as it grows without assigning one blanket colour to a group.
+export function tagStyle(id) {
+  let hash = 2166136261;
+  for (const char of String(id)) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `--tag-h:${(hash >>> 0) % 360}`;
+}
+
 function distance(a, b) {
   const row = Array.from({ length: b.length + 1 }, (_, i) => i);
   for (let i = 1; i <= a.length; i++) {
@@ -47,18 +58,10 @@ export function lookalike(label, tags) {
     || null;
 }
 
-// Tags in the same group widen the search (RnB or UK); different groups
-// narrow it (and Guitar).
+// Every selected tag narrows the result: Aggressive + Dark + Anthem means a
+// loop must carry all three, even when they belong to the same group.
 export function matches(loop, selectedIds, tagsById) {
-  const byGroup = new Map();
-  for (const id of selectedIds) {
-    const tag = tagsById.get(id);
-    if (!tag) continue;
-    if (!byGroup.has(tag.group)) byGroup.set(tag.group, []);
-    byGroup.get(tag.group).push(id);
-  }
-  for (const ids of byGroup.values()) {
-    if (!ids.some((id) => loop.tags.includes(id))) return false;
-  }
-  return true;
+  return [...selectedIds]
+    .filter((id) => tagsById.has(id))
+    .every((id) => loop.tags.includes(id));
 }
