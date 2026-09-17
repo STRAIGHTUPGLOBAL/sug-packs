@@ -18,17 +18,18 @@ element, the element goes.
 ## Reach: the dock
 
 The app is used one-handed, walking around. Everything you reach for often sits
-at the **bottom**: each page's controls (search, upload, filters, sort) in a
-glass dock, with the navigation under them, centred and big enough for a thumb.
-The top holds identity only: the logotype on Build, the mark and title elsewhere.
+at the **bottom**: one fixed-height glass navigation, centred and big enough for
+a thumb. Its tiny labels keep the current page legible after its heading scrolls
+away. Search, upload, filters and sort sit below the page heading; putting them
+in the dock made its height jump between Library and Packs on mobile.
 
 Four tabs: Build, Library, Packs, You. "You" is your own profile — picture,
 name, counts, favourites, your packs, the other people, and the account rows.
 
-The dock is one fixed element outside the page (`[data-dock]`); pages fill it via
-`setDock(active, controls)`. Its height is measured into `--dock-h` so the page
-and the floating bar keep clear of it. The swipe deck and the pack page hide it:
-they are full-screen tasks with their own single action.
+The dock is one fixed element outside the page (`[data-dock]`), updated via
+`setDock(active)`. Its height is measured into `--dock-h` so the page and the
+floating bar keep clear of it. The swipe deck and the pack page hide it: they
+are full-screen tasks with their own single action.
 
 ## Colour means something
 
@@ -38,6 +39,8 @@ they are full-screen tasks with their own single action.
 | Amber | needs tags |
 | Green | copied, done |
 | Rose | destructive (sign out, delete, reset) |
+| Gold | a Best of loop |
+| Blue / cyan / magenta / green / orange | selected Type / Genre / Vibe / Instrument / Artist tags |
 | White at three strengths | `--text`, `--text-2`, `--text-3` |
 
 Cover art is the only other colour. `cover.js` turns a name into three OKLCH

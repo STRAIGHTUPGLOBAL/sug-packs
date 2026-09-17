@@ -153,8 +153,11 @@ a { color: inherit; text-decoration: none; }
 }
 .nav-item {
   position: relative;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
   width: 52px;
   height: 48px;
   border-radius: var(--radius-pill);
@@ -162,13 +165,13 @@ a { color: inherit; text-decoration: none; }
   transition: color 300ms ease;
 }
 .nav-item:hover, .nav-item.is-active { color: var(--text); }
-.nav-item .icon { width: 24px; height: 24px; }
-.nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.nav-item .icon { width: 21px; height: 21px; }
+.nav-label { font-size: 10px; font-weight: 500; line-height: 1; }
 .nav-item:active .icon { transform: scale(0.88); }
 .nav-item .icon { transition: transform 200ms var(--ease-out); }
 
-/* The dock: what your thumb reaches for, at the bottom of the screen.
-   Each page puts its own controls here, with the navigation underneath. */
+/* One constant-height navigation dock. Page-specific search and filters live
+   under the heading, so mobile Safari never has to reposition this bar. */
 .dock {
   position: fixed;
   z-index: 40;
@@ -184,14 +187,6 @@ a { color: inherit; text-decoration: none; }
   animation: dock-in 520ms var(--ease-out);
 }
 .dock > * { pointer-events: auto; }
-.dock-controls { display: grid; gap: 10px; width: 100%; max-width: var(--column); }
-/* One line, scrolled sideways if it must, so the dock stays short. */
-.dock .filters { flex-wrap: nowrap; overflow-x: auto; margin: 0; padding-bottom: 2px; scrollbar-width: none; }
-.dock .filters::-webkit-scrollbar { display: none; }
-.dock .filters .chip { flex: none; }
-.dock .chip--sort { margin-left: 0; }
-.dock .search { background: rgba(255, 255, 255, 0.07); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); }
-.dock .chip { backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); }
 @keyframes dock-in { from { opacity: 0; transform: translateY(16px); } }
 
 /* Content clears the dock; the floating bar sits just above it. */
@@ -263,6 +258,7 @@ body:has(.dock:not([hidden])) .bar { bottom: calc(var(--dock-h, 150px) + 12px); 
 /* Fields ------------------------------------------------------------------- */
 
 .search-row { display: flex; align-items: center; gap: 10px; }
+.search-row .search { min-width: 0; }
 .search-row .icon-button--glass { width: 44px; height: 44px; border-radius: 14px; cursor: pointer; }
 
 .search {
@@ -282,6 +278,15 @@ body:has(.dock:not([hidden])) .bar { bottom: calc(var(--dock-h, 150px) + 12px); 
 .search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; color: var(--text); font-size: 16px; }
 .search input::placeholder { color: var(--text-3); }
 .search input::-webkit-search-cancel-button { display: none; }
+.page-controls .filters { margin-bottom: 20px; }
+.page-controls + .tag-groups { margin-top: 20px; }
+
+.library-filters { padding: 14px 0 4px; }
+.filter-head { display: flex; align-items: center; justify-content: space-between; margin: 0 4px 10px; color: var(--text-3); font-size: 14px; font-weight: 500; }
+.filter-head .text-button { height: 28px; }
+.library-filter-groups { display: grid; gap: 16px; margin-top: 18px; }
+.library-filter-groups .group-label { margin-bottom: 8px; }
+.filter-clear { margin-top: 12px; }
 
 /* Tag chips ---------------------------------------------------------------- */
 
@@ -309,6 +314,12 @@ body:has(.dock:not([hidden])) .bar { bottom: calc(var(--dock-h, 150px) + 12px); 
 .chip:active { transform: scale(0.93); transition-duration: 80ms; }
 .chip:disabled { opacity: 0.32; pointer-events: none; }
 .chip.is-on { border-color: transparent; background: var(--accent); color: #fff; }
+.chip--type.is-on { background: var(--tag-type); color: #fff; }
+.chip--genre.is-on { background: var(--tag-genre); color: #071012; }
+.chip--vibe.is-on { background: var(--tag-vibe); color: #fff; }
+.chip--instrument.is-on { background: var(--tag-instrument); color: #071009; }
+.chip--artist.is-on { background: var(--tag-artist); color: #160B06; }
+.chip--best.is-on, .best-chip.is-on { background: var(--gold); color: #171006; }
 .chip.is-off { opacity: 0.28; pointer-events: none; }
 .chip.pop { animation: chip-pop 380ms var(--spring); }
 .chip--add { border-style: dashed; background: none; color: var(--text-3); padding: 0 12px; }
@@ -405,6 +416,21 @@ button.thumb:active { transform: scale(0.92); transition-duration: 80ms; }
 .thumb--sm .icon { width: 14px; height: 14px; }
 .thumb--lg { width: 52px; height: 52px; border-radius: 13px; }
 .thumb--lg .icon { width: 18px; height: 18px; }
+.best-badge {
+  position: absolute;
+  z-index: 2;
+  top: 3px;
+  right: 3px;
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #171006;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.best-badge .icon { position: static; width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2; filter: none; }
 
 /* Switch */
 .switch { position: relative; width: 51px; height: 31px; flex: none; }
@@ -524,7 +550,7 @@ button.thumb:active { transform: scale(0.92); transition-duration: 80ms; }
 .state .icon { width: 14px; height: 14px; }
 .state--reserved { color: var(--amber); }
 .state--placed { color: var(--rose); }
-.state--best { color: var(--accent-hover); }
+.state--best { color: var(--gold); }
 .state--missing { color: var(--rose); }
 .row.is-placed .row-title { color: var(--text-2); }
 .row.is-placed .thumb { opacity: 0.55; }

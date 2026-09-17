@@ -291,6 +291,7 @@
 .sheet-head { display: flex; align-items: center; gap: 14px; padding: 16px 12px 12px 20px; }
 .sheet-title { overflow: hidden; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; white-space: nowrap; text-overflow: ellipsis; }
 .sheet-sub { margin-top: 2px; color: var(--text-3); font-size: 14px; }
+.sheet-file { max-width: 100%; margin-top: 5px; color: var(--text-3); font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; }
 .sheet-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 20px 24px; }
 .sheet-body .tag-groups { margin-top: 8px; }
 .sheet-tools + .tag-groups { margin-top: 0; }

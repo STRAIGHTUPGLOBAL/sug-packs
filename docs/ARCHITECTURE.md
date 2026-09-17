@@ -158,6 +158,8 @@ Nothing about who worked on a loop is ever thrown away.
 - **The swipe session lives in localStorage** (`sugpacks-session`), so closing
   the phone mid-swipe keeps your place.
 - **Phones need one tap before audio plays**; after that each card plays itself.
+- **Play toggles stop, not pause.** Stopping resets to 0:00; opening a loop adds
+  the deliberate seek control needed to reach stems later in the same file.
 - **Playback is cached ahead, but deliberately bounded.** New uploads go straight
   into the browser cache from their local `File`; Library and Swipe cache up to
   eight likely next loops. Twelve files / 192 MB is the device-wide ceiling.

@@ -79,21 +79,17 @@ function header(active, left) {
   return `<header class="header">${left}</header>`;
 }
 
-// Everything you reach for while holding the phone sits at the bottom: the
-// page's own controls, and the navigation under them.
-function setDock(active, controls = "") {
+// One persistent bottom navigation. Page-specific controls stay in the page so
+// changing tabs cannot change the dock's height on mobile Safari.
+function setDock(active) {
   dock.hidden = false;
   if (!dock.querySelector(".nav")) {
     dock.innerHTML = `
-    <div class="dock-controls" data-dock-controls hidden></div>
     <nav class="nav" aria-label="Main">
       <span class="nav-indicator"></span>
       ${TABS.map((t) => `<a class="nav-item" href="#/${t.id}" data-nav="${t.id}" aria-label="${t.label}" title="${t.label}">${icon(t.icon)}<span class="nav-label">${t.label}</span></a>`).join("")}
     </nav>`;
   }
-  const controlsRoot = dock.querySelector("[data-dock-controls]");
-  controlsRoot.hidden = !controls;
-  controlsRoot.innerHTML = controls;
   const nav = dock.querySelector(".nav");
   nav.style.setProperty("--at", navFrom);
   nav.dataset.navTo = TAB_IDS.indexOf(active);
@@ -130,7 +126,7 @@ function syncThumbs(root, s) {
     button.classList.toggle("is-playing", on);
     button.classList.toggle("is-loading", loading);
     button.setAttribute("aria-label", on ? "Stop" : "Play");
-    button.innerHTML = icon(on ? "stop" : "play");
+    button.innerHTML = `${icon(on ? "stop" : "play")}${button.dataset.bestThumb === "1" ? `<span class="best-badge">${icon("trophy")}</span>` : ""}`;
   });
 }
 
@@ -207,6 +203,12 @@ function renderBuild() {
           </a>
         </div>` : ""}
       ${tagged.length ? `
+        <div class="page-controls">
+          <div class="search-row">
+            <label class="search">${icon("search")}<input type="search" data-query placeholder="Search tags" value="${esc(tagQuery)}" autocomplete="off"></label>
+            <button class="text-button" type="button" data-clear style="opacity:0; pointer-events:none">Clear</button>
+          </div>
+        </div>
         <div class="tag-groups" data-groups></div>` : `
         <div class="empty">
           <p>No tagged loops yet.</p>
@@ -219,15 +221,11 @@ function renderBuild() {
     return null;
   }
 
-  setDock("build", `
-    <div class="search-row">
-      <label class="search">${icon("search")}<input type="search" data-query placeholder="Search tags" value="${esc(tagQuery)}" autocomplete="off"></label>
-      <button class="text-button" type="button" data-clear style="opacity:0; pointer-events:none">Clear</button>
-    </div>`);
+  setDock("build");
 
   const page = view.querySelector(".page");
   const groupsEl = view.querySelector("[data-groups]");
-  const clearButton = dock.querySelector("[data-clear]");
+  const clearButton = view.querySelector("[data-clear]");
   const current = () => tagged.filter((l) => matches(l, selected, byId));
   let bar = null;
   let lastCount = null;
@@ -243,7 +241,7 @@ function renderBuild() {
       return `
         <section>
           <h2 class="group-label">${group.label}</h2>
-          <div class="chips">${groupTags.map((t) => `<button class="chip" type="button" data-tag="${t.id}">${esc(t.label)}</button>`).join("")}</div>
+          <div class="chips">${groupTags.map((t) => `<button class="chip chip--${t.group}" type="button" data-tag="${t.id}">${esc(t.label)}</button>`).join("")}</div>
         </section>`;
     }).join("") || `<p class="empty">${tagQuery ? `No tag called “${esc(tagQuery)}”.` : "No tags yet. Tag a loop in the Library."}</p>`;
     paintState();
@@ -326,35 +324,42 @@ function renderBuild() {
   };
   view.addEventListener("click", onClick);
   view.addEventListener("input", onInput);
-  dock.addEventListener("click", onClick);
-  dock.addEventListener("input", onInput);
   renderGroups();
   return () => {
     view.removeEventListener("click", onClick);
     view.removeEventListener("input", onInput);
-    dock.removeEventListener("click", onClick);
-    dock.removeEventListener("input", onInput);
   };
 }
 
 /* Library -------------------------------------------------------------------- */
 
+let librarySort = "recent";
+let libraryFiltersOpen = false;
+let libraryBestOnly = false;
+const libraryTags = new Set();
+const LIBRARY_SORTS = { recent: "Newest", name: "A–Z", oldest: "Oldest" };
+
 function renderLibrary() {
   view.innerHTML = `
     <section class="${pageClass()}">
       ${header("library", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="227"><h1 class="header-title">Library</h1></div>')}
+      <div class="page-controls">
+        <div class="search-row">
+          <label class="search">${icon("search")}<input type="search" data-lib-query placeholder="Search loops or tags" value="${esc(libraryQuery)}" autocomplete="off"></label>
+          <button class="icon-button icon-button--glass" type="button" data-lib-sort aria-label="Sort: ${LIBRARY_SORTS[librarySort]}" title="Sort: ${LIBRARY_SORTS[librarySort]}">${icon("sort")}</button>
+          <label class="icon-button icon-button--glass" aria-label="Upload" title="Upload">${icon("plus")}<input type="file" accept="audio/*,.mp3,.wav" multiple hidden data-upload></label>
+        </div>
+        <div class="library-filters" data-lib-filters hidden></div>
+      </div>
       <div data-uploads></div>
       <div data-results></div>
     </section>`;
 
-  setDock("library", `
-    <div class="search-row">
-      <label class="search">${icon("search")}<input type="search" data-lib-query placeholder="Search" value="${esc(libraryQuery)}" autocomplete="off"></label>
-      <label class="icon-button icon-button--glass" aria-label="Upload" title="Upload">${icon("plus")}<input type="file" accept="audio/*,.mp3,.wav" multiple hidden data-upload></label>
-    </div>`);
+  setDock("library");
 
   const results = view.querySelector("[data-results]");
   const uploadSlot = view.querySelector("[data-uploads]");
+  const filterSlot = view.querySelector("[data-lib-filters]");
   let first = true;
   let audioObserver = null;
 
@@ -362,17 +367,37 @@ function renderLibrary() {
     uploadSlot.innerHTML = uploads.summaryHTML();
   }
 
+  function paintFilters() {
+    filterSlot.hidden = !libraryFiltersOpen;
+    if (!libraryFiltersOpen) return;
+    const tags = store.listTags().filter((tag) => store.tagUseCount(tag.id) || libraryTags.has(tag.id));
+    filterSlot.innerHTML = `
+      <div class="filter-head"><span>Filter</span><button class="text-button" type="button" data-lib-filter-done>Done</button></div>
+      <div class="chips"><button class="chip chip--best ${libraryBestOnly ? "is-on" : ""}" type="button" data-lib-best>${icon("trophy")} Best of</button></div>
+      <div class="library-filter-groups">${GROUPS.map((group) => {
+        const choices = tags.filter((tag) => tag.group === group.id).sort((a, b) => a.label.localeCompare(b.label));
+        if (!choices.length) return "";
+        return `<section><h3 class="group-label">${group.label}</h3><div class="chips">${choices.map((tag) => `<button class="chip chip--${tag.group} ${libraryTags.has(tag.id) ? "is-on" : ""}" type="button" data-lib-tag="${tag.id}">${esc(tag.label)}</button>`).join("")}</div></section>`;
+      }).join("")}</div>
+      ${libraryTags.size || libraryBestOnly ? '<button class="text-button filter-clear" type="button" data-lib-filter-clear>Clear filters</button>' : ""}`;
+  }
+
   function paint() {
     if (currentPage() !== "library") return; // a sheet closing after you've moved on
     const byId = store.tagsById();
     const all = store.listLoops();
+    const filtering = Boolean(libraryTags.size || libraryBestOnly);
     const missing = all.filter((l) => l.missing);
     const untagged = all.filter((l) => !l.missing && !l.tags.length);
     const q = libraryQuery.trim().toLowerCase();
-    const shown = all.filter((l) => !q || l.file.toLowerCase().includes(q) || l.tags.some((id) => byId.get(id)?.label.toLowerCase().includes(q)));
+    const shown = all
+      .filter((loop) => !q || loop.file.toLowerCase().includes(q) || loop.title.toLowerCase().includes(q) || loop.tags.some((id) => byId.get(id)?.label.toLowerCase().includes(q)))
+      .filter((loop) => !libraryBestOnly || loop.bestOf)
+      .filter((loop) => matches(loop, libraryTags, byId))
+      .sort((a, b) => librarySort === "name" ? a.title.localeCompare(b.title) : librarySort === "oldest" ? a.addedAt - b.addedAt : b.addedAt - a.addedAt);
 
     results.innerHTML = `
-      ${missing.length && !q ? `
+      ${missing.length && !q && !filtering ? `
         <div class="list list--spaced">
           <div class="row">
             <span class="state state--missing">${icon("x")}</span>
@@ -380,7 +405,7 @@ function renderLibrary() {
             <button class="button button--small button--danger" type="button" data-remove-missing-all>Remove</button>
           </div>
         </div>` : ""}
-      ${untagged.length && !q ? `
+      ${untagged.length && !q && !filtering ? `
         <div class="list list--spaced">
           <button class="row" type="button" data-queue>
             <span class="dot"></span>
@@ -390,17 +415,16 @@ function renderLibrary() {
         </div>` : ""}
       ${shown.length ? `<ul class="list ${first ? "stagger" : ""}">${shown.map((loop, i) => `
         <li class="row row--media row--tap ${loop.missing ? "is-missing" : loop.status === "placed" ? "is-placed" : ""}" data-open="${loop.id}" style="--i:${i}">
-          <button class="thumb" type="button" data-play="${loop.id}" aria-label="${loop.missing ? "File missing" : "Play"}" style="${coverStyle(loop.file)}" ${loop.missing ? "disabled" : ""}>${icon("play")}</button>
+          <button class="thumb" type="button" data-play="${loop.id}" data-best-thumb="${loop.bestOf ? "1" : "0"}" aria-label="${loop.missing ? "File missing" : "Play"}" style="${coverStyle(loop.file)}" ${loop.missing ? "disabled" : ""}>${icon("play")}${loop.bestOf ? `<span class="best-badge">${icon("trophy")}</span>` : ""}</button>
           <div class="row-main">
             <div class="row-title">${esc(loop.title)}</div>
             <div class="row-sub ${loop.tags.length || loop.status !== "open" ? "" : "row-sub--amber"}">
-              ${loop.bestOf ? `<span class="state state--best">${icon("trophy")} Best of</span>` : ""}
               ${loop.missing ? `<span class="state state--missing">${icon("x")} Missing from Dropbox</span>` : loop.status === "placed" ? `<span class="state state--placed">${icon("disc")} Placed</span>` : loop.status === "reserved" ? `<span class="state state--reserved">${icon("reserved")} Reserved</span>` : ""}
               ${loop.missing ? "" : loop.tags.length ? esc(loopSub(loop, byId)) : `${loop.bpm ? `${loop.bpm} BPM · ` : ""}No tags`}
             </div>
           </div>
           ${loop.missing ? `<button class="icon-button" type="button" data-remove-missing="${loop.id}" aria-label="Remove ${esc(loop.title)}">${icon("trash")}</button>` : ""}
-        </li>`).join("")}</ul>` : `<p class="empty">${q ? "Nothing found." : "No loops yet. Tap + to upload."}</p>`}`;
+        </li>`).join("")}</ul>` : `<p class="empty">${q || filtering ? "Nothing found." : "No loops yet. Tap + to upload."}</p>`}`;
     first = false;
     syncThumbs(results, player.state());
     const ahead = shown.filter((loop) => !loop.missing).slice(0, 8).map((loop) => loop.id);
@@ -420,6 +444,27 @@ function renderLibrary() {
 
   const onClick = async (event) => {
     if (event.target.closest("[data-upload-queue]")) { uploads.openQueue(); return; }
+    if (event.target.closest("[data-lib-filter-done]")) { libraryFiltersOpen = false; paintFilters(); return; }
+    if (event.target.closest("[data-lib-filter-clear]")) { libraryTags.clear(); libraryBestOnly = false; paintFilters(); paint(); return; }
+    if (event.target.closest("[data-lib-best]")) { libraryBestOnly = !libraryBestOnly; paintFilters(); paint(); return; }
+    const tagFilter = event.target.closest("[data-lib-tag]");
+    if (tagFilter) {
+      const id = tagFilter.dataset.libTag;
+      libraryTags.has(id) ? libraryTags.delete(id) : libraryTags.add(id);
+      paintFilters();
+      paint();
+      return;
+    }
+    if (event.target.closest("[data-lib-sort]")) {
+      const choices = Object.keys(LIBRARY_SORTS);
+      librarySort = choices[(choices.indexOf(librarySort) + 1) % choices.length];
+      const button = view.querySelector("[data-lib-sort]");
+      button.setAttribute("aria-label", `Sort: ${LIBRARY_SORTS[librarySort]}`);
+      button.title = `Sort: ${LIBRARY_SORTS[librarySort]}`;
+      toast(LIBRARY_SORTS[librarySort]);
+      paint();
+      return;
+    }
     const removeAll = event.target.closest("[data-remove-missing-all]");
     const removeOne = event.target.closest("[data-remove-missing]");
     if (removeAll || removeOne) {
@@ -453,6 +498,11 @@ function renderLibrary() {
     libraryQuery = event.target.value;
     paint();
   };
+  const onFocus = (event) => {
+    if (!event.target.matches("[data-lib-query]")) return;
+    libraryFiltersOpen = true;
+    paintFilters();
+  };
   const onChange = (event) => {
     if (!event.target.matches("[data-upload]")) return;
     const files = [...event.target.files];
@@ -463,16 +513,15 @@ function renderLibrary() {
 
   view.addEventListener("click", onClick);
   view.addEventListener("input", onInput);
+  view.addEventListener("focusin", onFocus);
   view.addEventListener("change", onChange);
-  dock.addEventListener("click", onClick);
-  dock.addEventListener("input", onInput);
-  dock.addEventListener("change", onChange);
   const unsubscribe = player.subscribe((s) => syncThumbs(results, s));
   const unsubscribeUploads = uploads.subscribe((update) => {
     paintUploads();
     if (["done", "finished"].includes(update?.status)) paint();
   });
   paintUploads();
+  paintFilters();
   paint();
   store.checkLibraryFiles().then((changed) => {
     if (changed && currentPage() === "library") paint();
@@ -480,10 +529,8 @@ function renderLibrary() {
   return () => {
     view.removeEventListener("click", onClick);
     view.removeEventListener("input", onInput);
+    view.removeEventListener("focusin", onFocus);
     view.removeEventListener("change", onChange);
-    dock.removeEventListener("click", onClick);
-    dock.removeEventListener("input", onInput);
-    dock.removeEventListener("change", onChange);
     unsubscribe();
     unsubscribeUploads();
     audioObserver?.disconnect();
@@ -508,6 +555,7 @@ function openTagger(ids, index = 0, onDone = () => {}) {
       <div class="row-main">
         <h2 class="sheet-title">${esc(loop.title)}</h2>
         <p class="sheet-sub">${[loop.bpm ? `${loop.bpm} BPM` : "", queue ? `${index + 1} of ${ids.length}` : ""].filter(Boolean).join(" · ")}</p>
+        <p class="sheet-file">${esc(loop.file)}</p>
       </div>
       <button class="icon-button" type="button" data-sheet-close aria-label="Close">${icon("x")}</button>
     </div>
@@ -591,7 +639,7 @@ function openTagger(ids, index = 0, onDone = () => {}) {
       <section>
         <h3 class="group-label">${group.label}</h3>
         <div class="chips">
-          ${tags.filter((t) => t.group === group.id).sort((a, b) => a.label.localeCompare(b.label)).map((t) => `<button class="chip ${draft.has(t.id) ? "is-on" : ""}" type="button" data-t-tag="${t.id}">${esc(t.label)}</button>`).join("")}
+          ${tags.filter((t) => t.group === group.id).sort((a, b) => a.label.localeCompare(b.label)).map((t) => `<button class="chip chip--${t.group} ${draft.has(t.id) ? "is-on" : ""}" type="button" data-t-tag="${t.id}">${esc(t.label)}</button>`).join("")}
           ${adding === group.id ? `
             <form class="new-tag" data-t-new="${group.id}">
               <input data-t-input placeholder="New tag" autocomplete="off" enterkeyhint="done">
@@ -848,19 +896,21 @@ function renderPacks() {
   view.innerHTML = `
     <section class="${pageClass()}">
       ${header("packs", '<div class="header-brand"><img class="header-mark" src="assets/app-mark.png" alt="" width="256" height="227"><h1 class="header-title">Packs</h1></div>')}
+      <div class="page-controls">
+        <div class="search-row">
+          <label class="search">${icon("search")}<input type="search" data-pack-query placeholder="Search packs and loops" value="${esc(packQuery)}" autocomplete="off"></label>
+        </div>
+        <div class="filters">
+          <button class="chip" type="button" data-filter="all">All</button>
+          <button class="chip" type="button" data-filter="mine">Mine</button>
+          <button class="chip" type="button" data-filter="fav">${icon("star")} Favourites</button>
+          <button class="chip chip--sort" type="button" data-sort>${icon("sort")} <span data-sort-label></span></button>
+        </div>
+      </div>
       <div data-list></div>
     </section>`;
 
-  setDock("packs", `
-    <div class="search-row">
-      <label class="search">${icon("search")}<input type="search" data-pack-query placeholder="Search packs and loops" value="${esc(packQuery)}" autocomplete="off"></label>
-    </div>
-    <div class="filters">
-      <button class="chip" type="button" data-filter="all">All</button>
-      <button class="chip" type="button" data-filter="mine">Mine</button>
-      <button class="chip" type="button" data-filter="fav">${icon("star")} Favourites</button>
-      <button class="chip chip--sort" type="button" data-sort>${icon("sort")} <span data-sort-label></span></button>
-    </div>`);
+  setDock("packs");
 
   const listEl = view.querySelector("[data-list]");
   let first = true;
@@ -873,8 +923,8 @@ function renderPacks() {
     const shown = sortPacks(all.filter((pack) => matchesQuery(pack, q)
       && (packFilter === "all" || (packFilter === "mine" ? pack.by === mine : store.isFavorite(pack.id)))));
 
-    dock.querySelectorAll("[data-filter]").forEach((chip) => chip.classList.toggle("is-on", chip.dataset.filter === packFilter));
-    dock.querySelector("[data-sort-label]").textContent = SORTS[packSort];
+    view.querySelectorAll("[data-filter]").forEach((chip) => chip.classList.toggle("is-on", chip.dataset.filter === packFilter));
+    view.querySelector("[data-sort-label]").textContent = SORTS[packSort];
 
     listEl.innerHTML = shown.length
       ? `<ul class="list ${first ? "stagger" : ""}">${shown.map(packRow).join("")}</ul>`
@@ -912,14 +962,10 @@ function renderPacks() {
   };
   view.addEventListener("click", onClick);
   view.addEventListener("input", onInput);
-  dock.addEventListener("click", onClick);
-  dock.addEventListener("input", onInput);
   paint();
   return () => {
     view.removeEventListener("click", onClick);
     view.removeEventListener("input", onInput);
-    dock.removeEventListener("click", onClick);
-    dock.removeEventListener("input", onInput);
   };
 }
 

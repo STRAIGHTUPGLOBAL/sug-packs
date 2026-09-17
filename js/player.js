@@ -47,9 +47,9 @@ for (const event of ["play", "pause", "loadedmetadata", "seeked", "emptied", "er
 
 export async function play(loop, { from = 0 } = {}) {
   const token = ++request;
+  currentId = loop.id;
   if (sourceId !== loop.id) {
     audio.pause();
-    currentId = loop.id;
     loading = true;
     emit();
     const src = await audioUrl(loop);
