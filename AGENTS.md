@@ -2,11 +2,13 @@
 
 Read these before touching anything:
 
-1. `docs/ARCHITECTURE.md` — how it works and what will bite you.
-2. `docs/DESIGN.md` — the design rules. The owner rejected a cluttered first
+1. `docs/PRODUCT.md` — what the app is for, confirmed scope, and the next
+   producer/follow-up-pack workflow.
+2. `docs/ARCHITECTURE.md` — how it works and what will bite you.
+3. `docs/DESIGN.md` — the design rules. The owner rejected a cluttered first
    version; "one more element" is usually the wrong answer.
-3. `docs/OPERATIONS.md` — running, deploying, troubleshooting.
-4. `docs/BACKLOG.md` — what to work on, and how the list is worked.
+4. `docs/OPERATIONS.md` — running, deploying, troubleshooting.
+5. `docs/BACKLOG.md` — what to work on, and how the list is worked.
 
 House rules:
 

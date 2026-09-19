@@ -27,6 +27,11 @@ the keyboard opens and never share a containing layer with the dock.
 Four tabs: Build, Library, Packs, You. "You" is your own profile — picture,
 name, counts, favourites, your packs, the other people, and the account rows.
 
+Weeklies is a planned future fifth area, not part of the current dock. Do not
+add an empty tab before its workflow is specified. Producer/client recipients
+are also not app users: show them as a compact avatar badge on a pack, not as a
+fifth profile concept or a permanent navigation destination.
+
 The dock is one fixed element outside the page (`[data-dock]`), updated via
 `setDock(active)`. Its height is measured into `--dock-h` so the page and
 floating bar keep clear of it. Horizontal swipes move between adjacent tabs.
@@ -85,6 +90,8 @@ Intentional and responsive, never decorative:
 
 - `.thumb` — cover art square, three sizes, doubles as the play button.
 - `.avatar` — round, image or initials ("12" stays whole, longer names use one letter).
+- Recipient badge — reuse the avatar language plus a concise producer name or
+  handle; it must stay subordinate to the pack title and main action.
 - `.chip` — tag or filter; `is-on` is translucent with an opaque border,
   per-tag hues are deterministic, and `is-off` fades to 28%.
 - `.row` inside `.list` — the grouped list row; `.row--media` for a thumb on the left.

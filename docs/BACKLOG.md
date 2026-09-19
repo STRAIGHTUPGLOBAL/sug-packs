@@ -1,6 +1,7 @@
 # Backlog
 
-The working list for SUG Packs. Read `ARCHITECTURE.md` and `DESIGN.md` first.
+The working list for SUG Packs. Read `PRODUCT.md`, `ARCHITECTURE.md` and
+`DESIGN.md` first.
 
 ## How to work this list
 
@@ -18,6 +19,21 @@ Keep entries short: goal, why, and how you will know it works.
 ---
 
 ## Now
+
+- [ ] **Producer recipients and follow-up packs**
+  Goal: assign a producer/client to a pack, then open a sent pack and make more
+  for the same request without offering anything that was already in it.
+  Why: producers often ask for more after hearing the first pack; rebuilding
+  the filters and exclusions by memory wastes time and risks resending a file.
+  Done when: a reusable recipient has name, Instagram handle and picture; pack
+  creation assigns one recipient; the pack displays and searches by that
+  recipient; new packs persist their exact Build recipe and immutable original
+  sent membership; a source-pack action carries its recipient and recipe into
+  Build, excludes the source pack's sent samples, allows filter review, and
+  enters the normal swipe/create flow. Existing packs must degrade honestly.
+  Read the full requirements and open decisions in `PRODUCT.md` before schema
+  or UI work. **Needs Razz** only for the decisions explicitly left open there;
+  the stated minimum is one recipient and exclusion of the selected source pack.
 
 - [ ] **Listen through a pack**
   Goal: open a pack and play it end to end, or shuffled, without leaving the app.
@@ -41,9 +57,8 @@ Keep entries short: goal, why, and how you will know it works.
   remove tags across the selection. Deferred for now by Razz (16 Sep).
 - [ ] **Edit a pack's contents** — add or remove loops after it was created
   (copies into or deletes from the Dropbox folder, updates the row).
-- [ ] **Notes on a pack** — who asked for it, what for. Shown in the stash and
-  searchable, so "the one for Kaverr" finds it.
-- [ ] **Build a pack from an existing one** — duplicate, then swipe the copy.
+- [ ] **Notes on a pack** — freeform context beyond the structured recipient:
+  what the request was for or any delivery detail. Searchable in the stash.
 - [ ] **Filter loops by tempo and key** in Build and Library (ranges, not text).
 - [ ] **"Never sent" and "not in any pack" filters** — find the loops that are
   sitting unused.
@@ -54,6 +69,12 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Later / ideas
 
+- [ ] **Weeklies** — a future fifth area for curated recurring email-list packs,
+  usually 3–5 of the newest samples/starters. Specify its rules before adding a
+  tab or schema; see `PRODUCT.md`.
+- [ ] **Separate Samples, Starters and Beats libraries** — content kinds must
+  not cross-contaminate. Existing rows become Samples. This is direction, not
+  part of the current samples-only MVP; see `PRODUCT.md`.
 - [ ] Choose a pack's cover instead of taking it from the name.
 - [ ] Spot duplicate loops by audio, not just by file name.
 - [ ] Share links that expire, for one-off sends.

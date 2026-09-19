@@ -24,6 +24,7 @@ No build step: plain HTML, CSS and ES modules.
 
 | | |
 |---|---|
+| [docs/PRODUCT.md](docs/PRODUCT.md) | product scope, confirmed workflows, next feature brief, future libraries |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | how it fits together, the data contract, the database, the server function, the traps |
 | [docs/DESIGN.md](docs/DESIGN.md) | the design rules, colour meanings, spacing rhythm, motion |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | running, deploying, first-time setup, troubleshooting |

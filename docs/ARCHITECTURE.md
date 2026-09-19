@@ -91,6 +91,25 @@ packs, and manage only their own favourites and their own profile row. Packs
 are written by the server function alone, and `uses` only moves through
 `note_pack_use()`. Nothing is readable signed out.
 
+### Planned pack-history extension
+
+The next product workflow assigns packs to producer/client recipients and makes
+a follow-up pack from an earlier pack. Read `PRODUCT.md` before designing it.
+Two new kinds of data are required and neither can be reconstructed reliably
+from today's mutable `packs.loop_ids`:
+
+- the exact Build recipe selected for the pack; and
+- immutable original sent membership for exclusions and history.
+
+A recipient is a separate domain object (display name, Instagram handle,
+picture), not an app member and not a sound tag. Keep new SQL idempotent and the
+web app compatible with packs created before this metadata exists.
+
+Samples, starters and beats are also future first-class content kinds, not Type
+tags. The current database remains samples-only; do not start this migration as
+part of the recipient MVP. When it eventually happens, existing loop rows must
+default to `sample` and queries/history must stay scoped by content kind.
+
 ## The server function
 
 `supabase/functions/dropbox/index.ts`, deployed as `dropbox`, JWT verification
