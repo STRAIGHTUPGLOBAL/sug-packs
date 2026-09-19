@@ -32,10 +32,10 @@ not the people who receive packs. A producer/client such as Figurez is a
 
 ## Next workflow: recipients and follow-up packs
 
-Implementation status (19 Sep 2026): the web, demo, repeat-safe update 6 and
-`create_pack_v2` function support the stated minimum. It is not considered live
-until the owner runs the SQL, deploys the function and the disposable live test
-passes. The open product decisions below remain future refinements.
+Implementation status (19 Sep 2026): live. The web, repeat-safe update 6 and
+`create_pack_v2` are deployed. A live Figurez pack retained its Hard recipe and
+the follow-up view excluded all three sent loops while offering four unused
+matches. The open product decisions below remain future refinements.
 
 ### The problem
 

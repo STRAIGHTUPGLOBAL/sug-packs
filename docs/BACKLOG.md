@@ -20,24 +20,6 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Now
 
-- [ ] **Producer recipients and follow-up packs**
-  Goal: assign a producer/client to a pack, then open a sent pack and make more
-  for the same request without offering anything that was already in it.
-  Why: producers often ask for more after hearing the first pack; rebuilding
-  the filters and exclusions by memory wastes time and risks resending a file.
-  Done when: a reusable recipient has name, Instagram handle and picture; pack
-  creation assigns one recipient; the pack displays and searches by that
-  recipient; new packs persist their exact Build recipe and immutable original
-  sent membership; a source-pack action carries its recipient and recipe into
-  Build, excludes the source pack's sent samples, allows filter review, and
-  enters the normal swipe/create flow. Existing packs must degrade honestly.
-  Read the full requirements and open decisions in `PRODUCT.md` before schema
-  or UI work. **Needs Razz** only for the decisions explicitly left open there;
-  the stated minimum is one recipient and exclusion of the selected source pack.
-  Implementation is complete in update 6 and `create_pack_v2`; live completion
-  is waiting for the SQL paste, Edge Function deployment and one disposable
-  end-to-end pack test.
-
 - [ ] **Listen through a pack**
   Goal: open a pack and play it end to end, or shuffled, without leaving the app.
   Why: before sending a pack on, or when hunting for one loop inside it.
@@ -95,6 +77,9 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Done
 
+- [x] Producer recipients and follow-up packs: reusable name/Instagram/picture
+      badges, recipient search, saved Build recipes, immutable send history and
+      “More like this” with source-pack exclusions. Live verified with Figurez.
 - [x] Mobile shell and finding: a small app mark sits beside real page titles,
       larger tabs stay fixed while horizontal swipes move the page content,
       search stays at the top, Build/Library filter Best of, and selected tags
