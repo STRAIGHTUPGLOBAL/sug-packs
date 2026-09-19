@@ -86,6 +86,12 @@ Intentional and responsive, never decorative:
   pops onto it, the buttons rise.
 - Easing: `--ease-out` for entrances, `--ease-in-out` for exits, `--spring` for taps.
 
+## Quarantine
+
+Not a fifth tab: a "Quarantine" row at the top of the Library leads to a plain
+page (upload, year and month chips, four counts, one Purge action in the floating
+bar). Purge reuses the swipe deck; up = Later shares the neutral verdict style.
+
 ## Components worth knowing
 
 - `.thumb` — cover art square, three sizes, doubles as the play button.

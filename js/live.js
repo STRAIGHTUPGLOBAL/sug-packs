@@ -109,6 +109,7 @@ const fromLoop = (row) => ({
   statusAt: row.status_at ? Date.parse(row.status_at) : 0,
   addedBy: nameOf(row.added_by),
   addedAt: Date.parse(row.added_at),
+  madeOn: row.made_on ? String(row.made_on).slice(0, 7) : "",
 });
 const fromPack = (row) => ({
   id: row.id,
@@ -256,6 +257,7 @@ export function updateLoop(id, changes) {
   Object.assign(loop, changes);
   const row = {};
   for (const field of ["title", "bpm", "key", "tags"]) if (field in changes) row[field] = changes[field];
+  if ("madeOn" in changes) row.made_on = changes.madeOn ? `${changes.madeOn}-01` : null;
   sb.from("loops").update(row).eq("id", id).then(({ error }) => {
     if (error) report(new Error(`Couldn't save ${loop.title}: ${error.message}`));
   });
@@ -368,7 +370,7 @@ function cacheOne(id) {
 // Cache only what is likely to play next. New uploads are cached from their
 // local File below, so they need no round trip back through Dropbox at all.
 export async function cacheAudio(ids) {
-  const wanted = [...new Set(ids)].filter((id) => getLoop(id)).slice(0, 8);
+  const wanted = [...new Set(ids)].filter((id) => getLoop(id) || queueById.has(id)).slice(0, 8);
   if (!wanted.length) return;
   await warm(wanted);
   if (navigator.connection?.saveData || document.hidden) return;
@@ -470,6 +472,238 @@ export async function addFiles(files, onProgress = () => {}) {
 
   await Promise.all(Array.from({ length: Math.min(3, pending.length) }, worker));
   return added;
+}
+
+/* Quarantine --------------------------------------------------------------------- */
+
+// Old loops wait here until they are swiped into the library. Kept apart from
+// `loops` so Build and the Library never see them; loaded when the page opens.
+
+let queue = [];
+let queueById = new Map();
+let queueReady = null; // null = not asked yet · false = database update 7 missing
+
+const fromQueue = (row) => ({
+  id: row.id,
+  quarantine: true,
+  file: row.file,
+  path: row.dropbox_path,
+  title: row.title,
+  bpm: row.bpm,
+  key: row.key,
+  collabs: row.collabs ?? [],
+  tags: [],
+  duration: row.duration ?? 0,
+  madeOn: row.made_on ? String(row.made_on).slice(0, 7) : "",
+  state: row.state,
+  loopId: row.loop_id ?? "",
+  addedBy: nameOf(row.added_by),
+  addedAt: Date.parse(row.added_at),
+  decidedBy: nameOf(row.decided_by),
+  decidedAt: row.decided_at ? Date.parse(row.decided_at) : 0,
+});
+
+function setQueue(items) {
+  queue = items;
+  queueById = new Map(items.map((item) => [item.id, item]));
+}
+
+export async function loadQuarantine() {
+  try {
+    const rows = await fetchAll(() => sb.from("quarantine").select("*").eq("kind", "sample").order("id"));
+    setQueue(rows.map(fromQueue));
+    queueReady = true;
+  } catch (error) {
+    if (!/does not exist|schema cache|relation/i.test(error.message)) throw error;
+    setQueue([]);
+    queueReady = false;
+  }
+  return queueReady;
+}
+
+export const quarantineAvailable = () => queueReady;
+export const quarantineList = () => queue;
+export const getQuarantineItem = (id) => queueById.get(id);
+
+// Same rule for every upload: the exact file name identifies a loop. The reply
+// says where it already is, so the summary can say so.
+export function quarantineKnown(name) {
+  const key = name.toLowerCase();
+  if (loops.some((loop) => loop.file.toLowerCase() === key)) return "library";
+  const item = queue.find((entry) => entry.file.toLowerCase() === key);
+  if (!item) return "";
+  return item.state === "kept" ? "library" : item.state === "rejected" ? "rejected" : "quarantine";
+}
+
+const skipReason = (message) => /library/i.test(message) ? "library" : /rejected/i.test(message) ? "rejected" : "quarantine";
+
+export async function addQuarantineFiles(files, month, onProgress = () => {}) {
+  const added = [];
+  added.skipped = [];
+  added.failed = [];
+  const emit = (update) => { try { onProgress(update); } catch { /* UI moved on */ } };
+  if (queueReady === null) await loadQuarantine();
+  if (queueReady === false) throw new Error("Run database update 7 before using quarantine.");
+  const pending = [];
+  const seen = new Set();
+
+  files.forEach((file, index) => {
+    const key = file.name.toLowerCase();
+    const reason = quarantineKnown(file.name) || (seen.has(key) ? "quarantine" : "");
+    if (reason) {
+      added.skipped.push(file.name);
+      emit({ file, index, status: "skipped", reason, progress: 1 });
+      return;
+    }
+    seen.add(key);
+    pending.push({ file, index });
+    emit({ file, index, status: "waiting", progress: 0 });
+  });
+
+  let next = 0;
+  async function worker() {
+    while (next < pending.length) {
+      const { file, index } = pending[next++];
+      try {
+        emit({ file, index, status: "uploading", progress: 0 });
+        let link;
+        try {
+          link = await server("quarantine_upload_link", { name: file.name, month });
+        } catch (error) {
+          if (/already in/i.test(error.message)) {
+            added.skipped.push(file.name);
+            emit({ file, index, status: "skipped", reason: skipReason(error.message), progress: 1 });
+            continue;
+          }
+          throw error;
+        }
+        await uploadFile(link.url, file, (progress) => emit({ file, index, status: "uploading", progress }));
+        emit({ file, index, status: "saving", progress: 1 });
+        const parsed = parseName(link.name);
+        const row = check(await sb.from("quarantine").insert({
+          file: link.name,
+          dropbox_path: link.path,
+          title: parsed.title,
+          bpm: parsed.bpm,
+          key: parsed.key,
+          collabs: parsed.collabs,
+          duration: await durationOf(file),
+          made_on: `${month}-01`,
+        }).select().single());
+        const item = fromQueue(row);
+        item.addedBy = me?.name ?? item.addedBy;
+        setQueue([...queue, item]);
+        // The file is right here: keep it on the device, so swiping it later is instant.
+        const cacheJob = storeAudio(item.id, file).catch(() => false).finally(() => cacheJobs.delete(item.id));
+        cacheJobs.set(item.id, cacheJob);
+        added.push(item);
+        emit({ file, index, status: "done", progress: 1, loop: item });
+      } catch (error) {
+        const failure = { file, error: error instanceof Error ? error : new Error(String(error)) };
+        added.failed.push(failure);
+        emit({ file, index, status: "failed", progress: 0, error: failure.error });
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(3, pending.length) }, worker));
+  return added;
+}
+
+// Decisions show at once and save in the background, so swiping never waits on
+// Dropbox. Keeping moves the file, so it goes through the server function.
+const decisions = [];
+let deciding = false;
+
+async function drain() {
+  if (deciding) return;
+  deciding = true;
+  while (decisions.length) {
+    const job = decisions.shift();
+    try {
+      await job();
+    } catch (error) {
+      report(error);
+    }
+  }
+  deciding = false;
+}
+
+export function quarantineDecide(id, state) {
+  const item = queueById.get(id);
+  if (!item) return;
+  const before = { state: item.state, decidedBy: item.decidedBy, decidedAt: item.decidedAt, loopId: item.loopId };
+  item.state = state;
+  item.decidedBy = me?.name ?? "";
+  item.decidedAt = Date.now();
+  const revert = (error, what) => {
+    Object.assign(item, before);
+    throw new Error(`Couldn't ${what} ${item.title}: ${error.message}`);
+  };
+  decisions.push(async () => {
+    if (state === "kept") {
+      try {
+        const { loop: row } = await server("quarantine_keep", { id });
+        const loop = fromLoop(row);
+        loop.addedBy = nameOf(row.added_by);
+        if (!loops.some((entry) => entry.id === loop.id)) loops.unshift(loop);
+        item.loopId = loop.id;
+      } catch (error) { revert(error, "keep"); }
+      return;
+    }
+    const { error } = await sb.from("quarantine")
+      .update(state === "open"
+        ? { state, decided_by: null, decided_at: null }
+        : { state, decided_by: me?.id ?? null, decided_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) revert(error, state === "rejected" ? "reject" : "park");
+  });
+  drain();
+}
+
+// Back to open: from later or rejected it is a plain update; from kept the
+// server moves the file back (only while nobody has tagged or packed it).
+export async function quarantineReopen(id) {
+  const item = queueById.get(id);
+  if (!item) return;
+  // Let the decision it follows finish first, so the two never cross.
+  while (deciding || decisions.length) await new Promise((resolve) => setTimeout(resolve, 60));
+  if (item.state === "kept") {
+    await server("quarantine_unkeep", { id });
+    loops = loops.filter((loop) => loop.id !== item.loopId);
+    item.loopId = "";
+  } else {
+    const { error } = await sb.from("quarantine")
+      .update({ state: "open", decided_by: null, decided_at: null })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+  item.state = "open";
+  item.decidedBy = "";
+  item.decidedAt = 0;
+}
+
+// Everything rejected, gone for good: files and rows.
+export async function quarantinePurgeRejected(onProgress = () => {}) {
+  let removed = 0;
+  for (;;) {
+    const result = await server("quarantine_purge_rejected", { limit: 60 });
+    removed += result.removed;
+    onProgress(removed, result.remaining);
+    if (!result.remaining || !result.removed) break;
+  }
+  await loadQuarantine();
+  return removed;
+}
+
+// Free room in the Dropbox account, if the connection is allowed to say.
+export async function dropboxSpace() {
+  try {
+    const result = await server("space");
+    return result.unavailable || !result.allocated ? null : { used: result.used, total: result.allocated };
+  } catch {
+    return null;
+  }
 }
 
 /* Packs ----------------------------------------------------------------------------- */

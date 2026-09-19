@@ -23,11 +23,12 @@ export function subscribe(listener) {
   return () => listeners.delete(listener);
 }
 
-export function enqueue(files) {
+// target: null uploads into the library; { month: "2025-03" } into quarantine.
+export function enqueue(files, target = null) {
   if (!files.length) return;
   if (!running && tasks.length && tasks.every((task) => terminal.has(task.status))) tasks = [];
   for (const file of files) {
-    tasks.push({ id: nextId++, file, name: file.name, status: "waiting", progress: 0, error: "", loopId: "" });
+    tasks.push({ id: nextId++, file, name: file.name, status: "waiting", progress: 0, error: "", loopId: "", reason: "", target });
   }
   announced = false;
   notify();
@@ -45,21 +46,26 @@ function retry(task) {
 
 async function pump() {
   if (running) return;
-  const batch = tasks.filter((task) => task.status === "waiting");
-  if (!batch.length) return finish();
+  const first = tasks.find((task) => task.status === "waiting");
+  if (!first) return finish();
+  // One destination at a time: a batch shares its target.
+  const batch = tasks.filter((task) => task.status === "waiting" && task.target?.month === first.target?.month);
   running = true;
   const byFile = new Map(batch.map((task) => [task.file, task]));
+  const files = batch.map((task) => task.file);
+  const report = (update) => {
+    const task = byFile.get(update.file);
+    if (!task) return;
+    task.status = update.status;
+    task.progress = update.progress ?? task.progress;
+    task.error = update.error?.message ?? "";
+    task.reason = update.reason ?? task.reason;
+    task.loopId = update.loop?.id ?? task.loopId;
+    notify(update);
+  };
 
   try {
-    await store.addFiles(batch.map((task) => task.file), (update) => {
-      const task = byFile.get(update.file);
-      if (!task) return;
-      task.status = update.status;
-      task.progress = update.progress ?? task.progress;
-      task.error = update.error?.message ?? "";
-      task.loopId = update.loop?.id ?? task.loopId;
-      notify(update);
-    });
+    await (first.target ? store.addQuarantineFiles(files, first.target.month, report) : store.addFiles(files, report));
   } catch (error) {
     for (const task of batch.filter((item) => !terminal.has(item.status))) {
       task.status = "failed";
@@ -75,15 +81,27 @@ async function pump() {
   finish();
 }
 
+// Where the loops are going, and the words for what was already there.
+const place = () => (tasks.length && tasks.every((task) => task.target) ? "quarantine" : "library");
+const REASONS = { library: "already in the library", quarantine: "already in quarantine", rejected: "already in the rejected list" };
+const reasonOf = (task) => REASONS[task.reason] ?? REASONS[place()];
+
+function skippedDetail() {
+  const groups = {};
+  for (const task of tasks.filter((item) => item.status === "skipped")) groups[reasonOf(task)] = (groups[reasonOf(task)] ?? 0) + 1;
+  return Object.entries(groups).map(([text, n]) => `${n} ${text}`).join(" · ");
+}
+
 function finish() {
   if (running || announced || !tasks.length || tasks.some((task) => !terminal.has(task.status))) return;
   announced = true;
   const added = tasks.filter((task) => task.status === "done").length;
   const skipped = tasks.filter((task) => task.status === "skipped").length;
   const failed = tasks.filter((task) => task.status === "failed").length;
+  const where = place() === "quarantine" ? "in quarantine" : "";
   if (failed) toast(`${plural(failed, "file")} couldn't upload`);
-  else if (added) toast(`${plural(added, "loop")} added${skipped ? ` · ${skipped} already there` : ""}`);
-  else if (skipped) toast(`${plural(skipped, "loop")} already in the library`);
+  else if (added) toast(`${plural(added, "loop")} added${where ? " to quarantine" : ""}${skipped ? ` · ${skipped} skipped` : ""}`);
+  else if (skipped) toast(`${plural(skipped, "loop")} skipped: ${skippedDetail()}`);
   notify({ status: "finished" });
 }
 
@@ -106,10 +124,10 @@ export function summaryHTML() {
       ? `${plural(failed, "file")} failed`
       : added
         ? `${plural(added, "loop")} added`
-        : `${plural(skipped, "loop")} already in the library`;
+        : `${plural(skipped, "loop")} skipped`;
   const detail = working
     ? active?.name || "Preparing…"
-    : [skipped && added ? `${skipped} already there` : "", failed ? "Tap to retry" : ""].filter(Boolean).join(" · ") || (added ? "Ready to tag" : "");
+    : [skipped ? skippedDetail() : "", failed ? "Tap to retry" : ""].filter(Boolean).join(" · ") || (added ? (place() === "quarantine" ? "Ready to purge" : "Ready to tag") : "");
   const progress = total ? tasks.reduce((sum, task) => sum + (terminal.has(task.status) ? 1 : task.progress), 0) / total : 0;
   return `
     <div class="list upload-summary">
@@ -130,7 +148,7 @@ const statusText = (task) => {
   if (task.status === "uploading") return `${Math.round(task.progress * 100)}%`;
   if (task.status === "saving") return "Saving";
   if (task.status === "done") return "Added";
-  if (task.status === "skipped") return "Already in library";
+  if (task.status === "skipped") return reasonOf(task).replace(/^a/, "A");
   return task.error || "Couldn't upload";
 };
 

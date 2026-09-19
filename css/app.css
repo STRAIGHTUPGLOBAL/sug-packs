@@ -293,7 +293,10 @@ body:has(.dock:not([hidden])) .bar { bottom: calc(var(--dock-h, 104px) + 12px); 
 }
 .page-controls .filters { margin: 12px 0 20px; }
 .page-controls + .tag-groups { margin-top: 20px; }
-.quick-filters { display: flex; margin-top: 12px; }
+.quick-filters { display: flex; gap: 8px; margin-top: 12px; overflow-x: auto; scrollbar-width: none; }
+.quick-filters::-webkit-scrollbar { display: none; }
+.quick-filters .chip { flex: none; }
+.quick-years { display: contents; }
 
 .library-filters { padding: 14px 0 4px; }
 .filter-head { display: flex; align-items: center; justify-content: space-between; margin: 0 4px 10px; color: var(--text-3); font-size: 14px; font-weight: 500; }
@@ -729,3 +732,24 @@ button.thumb:active { transform: scale(0.92); transition-duration: 80ms; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; transition-duration: 1ms !important; }
 }
+
+/* Quarantine ------------------------------------------------------------------ */
+
+.quarantine-years, .quarantine-months { margin-top: 12px; }
+.row-count { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.row:disabled { opacity: 1; cursor: default; }
+.row-select {
+  flex: none;
+  height: 28px;
+  padding: 0 4px;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--text-2);
+  font-size: 17px;
+  text-align: right;
+  text-align-last: right;
+}
+.drop { border: 1px dashed transparent; transition: background-color 200ms ease, border-color 200ms ease; }
+.drop.is-over { border-color: rgba(104, 117, 245, 0.88); background: rgba(73, 84, 230, 0.12); }
+.drop-files { display: inline-flex; align-items: center; cursor: pointer; }

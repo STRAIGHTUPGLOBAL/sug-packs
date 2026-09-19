@@ -15,6 +15,8 @@ export const {
   updateLoop, setBestOf, audioUrl, warm, cacheAudio, addFiles, deleteLoop, setLoopStatus,
   listPacks, createPack, deletePack, renamePack,
   listRecipients, saveRecipient,
+  loadQuarantine, quarantineAvailable, quarantineList, getQuarantineItem, quarantineKnown,
+  addQuarantineFiles, quarantineDecide, quarantineReopen, quarantinePurgeRejected, dropboxSpace,
   myId, profileOf, people, setAvatar, setPersonName,
   isFavorite, favoriteCount, favoritesOf, toggleFavorite, notePackUse,
 } = impl;

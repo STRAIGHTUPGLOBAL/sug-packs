@@ -4,6 +4,7 @@
 import { coverStyle } from "./cover.js";
 import * as player from "./player.js";
 import * as store from "./data.js";
+import * as purge from "./purge.js";
 import * as swipe from "./swipe.js";
 import * as uploads from "./uploads.js";
 import { packName } from "./names.js";
@@ -30,6 +31,10 @@ const selected = new Set();
 let buildContext = null;
 let tagQuery = "";
 let buildBestOnly = false;
+const buildYears = new Set();
+const yearOf = (loop) => (loop.madeOn ? loop.madeOn.slice(0, 4) : "");
+const yearsIn = (list) => [...new Set(list.map(yearOf).filter(Boolean))].sort().reverse();
+const yearChips = (years, chosen, attr) => years.map((year) => `<button class="chip ${chosen.has(year) ? "is-on" : ""}" type="button" ${attr}="${year}" aria-pressed="${chosen.has(year)}">${year}</button>`).join("");
 let libraryQuery = "";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -69,11 +74,13 @@ async function route() {
   navFrom = fromTab ? TAB_IDS.indexOf(asTab(lastPage)) : Math.max(0, TAB_IDS.indexOf(asTab(page)));
   lastPage = page;
 
-  const immersive = ["swipe", "pack"].includes(page);
+  const immersive = ["swipe", "pack", "purge"].includes(page);
   if (immersive) hideDock();
   entryTabDirection = directional ? tabDirection : 0;
   if (page === "swipe") cleanup = swipe.renderSwipe(view, go);
   else if (page === "pack") cleanup = swipe.renderPack(view, go);
+  else if (page === "purge") cleanup = purge.renderPurge(view, go);
+  else if (page === "quarantine") cleanup = purge.renderQuarantine(view, { go, setDock, pageClass });
   else if (page === "library") cleanup = renderLibrary();
   else if (page === "packs") cleanup = renderPacks();
   else if (page === "u") cleanup = renderProfile(decodeURIComponent(location.hash.split("/")[2] ?? ""));
@@ -267,6 +274,7 @@ function renderBuild() {
           </div>
           <div class="quick-filters">
             <button class="chip chip--best ${buildBestOnly ? "is-on" : ""}" type="button" data-build-best aria-pressed="${buildBestOnly}">${icon("trophy")} Best of</button>
+            ${yearChips(yearsIn(tagged), buildYears, "data-build-year")}
           </div>
         </div>
         <div class="tag-groups" data-groups></div>
@@ -287,7 +295,9 @@ function renderBuild() {
   const page = view.querySelector(".page");
   const groupsEl = view.querySelector("[data-groups]");
   const clearButton = view.querySelector("[data-clear]");
-  const current = () => tagged.filter((l) => (!buildBestOnly || l.bestOf) && matches(l, selected, byId));
+  const yearOk = (l) => !buildYears.size || buildYears.has(yearOf(l));
+  const filtering = () => selected.size || buildBestOnly || buildYears.size;
+  const current = () => tagged.filter((l) => (!buildBestOnly || l.bestOf) && yearOk(l) && matches(l, selected, byId));
   let bar = null;
   let lastCount = null;
 
@@ -314,13 +324,13 @@ function renderBuild() {
       const on = selected.has(id);
       const candidate = new Set(selected);
       candidate.add(id);
-      const off = !on && !tagged.some((l) => (!buildBestOnly || l.bestOf) && matches(l, candidate, byId));
+      const off = !on && !tagged.some((l) => (!buildBestOnly || l.bestOf) && yearOk(l) && matches(l, candidate, byId));
       chip.classList.toggle("is-on", on);
       chip.classList.toggle("is-off", off);
       chip.setAttribute("aria-pressed", on);
     });
-    clearButton.style.opacity = selected.size || buildBestOnly ? "1" : "0";
-    clearButton.style.pointerEvents = selected.size || buildBestOnly ? "auto" : "none";
+    clearButton.style.opacity = filtering() ? "1" : "0";
+    clearButton.style.pointerEvents = filtering() ? "auto" : "none";
     const followUpEmpty = view.querySelector("[data-follow-up-empty]");
     if (followUpEmpty) followUpEmpty.hidden = current().length !== 0;
     paintBar();
@@ -328,7 +338,7 @@ function renderBuild() {
 
   function paintBar() {
     const count = current().length;
-    if ((selected.size || buildBestOnly) && !bar) {
+    if (filtering() && !bar) {
       page.insertAdjacentHTML("beforeend", `
         <div class="bar">
           <span class="bar-text"><b data-count></b> <span data-count-word></span></span>
@@ -338,7 +348,7 @@ function renderBuild() {
       bar = page.querySelector(".bar");
       page.classList.add("page--with-bar");
       lastCount = null;
-    } else if (!selected.size && !buildBestOnly && bar) {
+    } else if (!filtering() && bar) {
       const leaving = bar;
       bar = null;
       leaving.classList.add("is-leaving");
@@ -367,9 +377,18 @@ function renderBuild() {
       button.setAttribute("aria-pressed", buildBestOnly);
       return paintState();
     }
+    const yearChip = event.target.closest("[data-build-year]");
+    if (yearChip) {
+      const year = yearChip.dataset.buildYear;
+      buildYears.has(year) ? buildYears.delete(year) : buildYears.add(year);
+      yearChip.classList.toggle("is-on", buildYears.has(year));
+      yearChip.setAttribute("aria-pressed", buildYears.has(year));
+      return paintState();
+    }
     if (event.target.closest("[data-cancel-follow-up]")) {
       buildContext = null;
       selected.clear();
+      buildYears.clear();
       buildBestOnly = false;
       return go("#/build");
     }
@@ -385,6 +404,8 @@ function renderBuild() {
     }
     if (event.target.closest("[data-clear]")) {
       selected.clear();
+      buildYears.clear();
+      view.querySelectorAll("[data-build-year]").forEach((chip) => { chip.classList.remove("is-on"); chip.setAttribute("aria-pressed", "false"); });
       buildBestOnly = false;
       view.querySelector("[data-build-best]").classList.remove("is-on");
       view.querySelector("[data-build-best]").setAttribute("aria-pressed", "false");
@@ -395,7 +416,7 @@ function renderBuild() {
         recipientId: buildContext?.recipientId ?? null,
         sourcePackId: buildContext?.sourcePackId ?? null,
         excludedIds: buildContext?.excludedIds ?? [],
-        buildRecipe: { tagIds: [...selected], bestOnly: buildBestOnly },
+        buildRecipe: { tagIds: [...selected], bestOnly: buildBestOnly, years: [...buildYears] },
       });
       buildContext = null;
       return go("#/swipe");
@@ -406,7 +427,7 @@ function renderBuild() {
         recipientId: buildContext?.recipientId ?? null,
         sourcePackId: buildContext?.sourcePackId ?? null,
         excludedIds: buildContext?.excludedIds ?? [],
-        buildRecipe: { tagIds: [...selected], bestOnly: buildBestOnly },
+        buildRecipe: { tagIds: [...selected], bestOnly: buildBestOnly, years: [...buildYears] },
       });
       buildContext = null;
       return go("#/pack");
@@ -431,6 +452,7 @@ function renderBuild() {
 let librarySort = "recent";
 let libraryFiltersOpen = false;
 let libraryBestOnly = false;
+const libraryYears = new Set();
 const libraryTags = new Set();
 const LIBRARY_SORTS = { recent: "Newest", name: "A–Z", oldest: "Oldest" };
 
@@ -446,6 +468,7 @@ function renderLibrary() {
         </div>
         <div class="quick-filters">
           <button class="chip chip--best ${libraryBestOnly ? "is-on" : ""}" type="button" data-lib-best aria-pressed="${libraryBestOnly}">${icon("trophy")} Best of</button>
+          <span data-lib-years class="quick-years"></span>
         </div>
         <div class="library-filters" data-lib-filters hidden></div>
       </div>
@@ -480,20 +503,23 @@ function renderLibrary() {
         if (!choices.length) return "";
         return `<section><h3 class="group-label">${group.label}</h3><div class="chips">${choices.map((tag) => `<button class="chip chip--tag ${libraryTags.has(tag.id) ? "is-on" : ""}" style="${tagStyle(tag.id)}" type="button" data-lib-tag="${tag.id}">${esc(tag.label)}</button>`).join("")}</div></section>`;
       }).join("")}</div>
-      ${libraryTags.size || libraryBestOnly ? '<button class="text-button filter-clear" type="button" data-lib-filter-clear>Clear filters</button>' : ""}`;
+      ${libraryTags.size || libraryBestOnly || libraryYears.size ? '<button class="text-button filter-clear" type="button" data-lib-filter-clear>Clear filters</button>' : ""}`;
   }
 
   function paint() {
     if (currentPage() !== "library") return; // a sheet closing after you've moved on
     const byId = store.tagsById();
     const all = store.listLoops();
-    const filtering = Boolean(libraryTags.size || libraryBestOnly);
+    const filtering = Boolean(libraryTags.size || libraryBestOnly || libraryYears.size);
+    view.querySelector("[data-lib-years]").innerHTML = yearChips(yearsIn(all), libraryYears, "data-lib-year");
     const missing = all.filter((l) => l.missing);
     const untagged = all.filter((l) => !l.missing && !l.tags.length);
+    const quarantineOpen = store.quarantineList().filter((item) => item.state === "open" || item.state === "later").length;
     const q = libraryQuery.trim().toLowerCase();
     const shown = all
       .filter((loop) => !q || loop.file.toLowerCase().includes(q) || loop.title.toLowerCase().includes(q) || loop.tags.some((id) => byId.get(id)?.label.toLowerCase().includes(q)))
       .filter((loop) => !libraryBestOnly || loop.bestOf)
+      .filter((loop) => !libraryYears.size || libraryYears.has(yearOf(loop)))
       .filter((loop) => matches(loop, libraryTags, byId))
       .sort((a, b) => librarySort === "name" ? a.title.localeCompare(b.title) : librarySort === "oldest" ? a.addedAt - b.addedAt : b.addedAt - a.addedAt);
     shownIds = shown.filter((loop) => !loop.missing).map((loop) => loop.id);
@@ -506,6 +532,14 @@ function renderLibrary() {
             <span class="row-main">${plural(missing.length, "file")} missing</span>
             <button class="button button--small button--danger" type="button" data-remove-missing-all>Remove</button>
           </div>
+        </div>` : ""}
+      ${store.quarantineAvailable() !== false && !q && !filtering ? `
+        <div class="list list--spaced">
+          <a class="row" href="#/quarantine">
+            <span class="row-main">Quarantine</span>
+            ${quarantineOpen ? `<span class="row-label row-count">${quarantineOpen} to go</span>` : ""}
+            ${icon("chevron", "row-chevron")}
+          </a>
         </div>` : ""}
       ${untagged.length && !q && !filtering ? `
         <div class="list list--spaced">
@@ -552,7 +586,15 @@ function renderLibrary() {
       paintFilters();
       return;
     }
-    if (event.target.closest("[data-lib-filter-clear]")) { libraryTags.clear(); libraryBestOnly = false; paintFilters(); paint(); return; }
+    if (event.target.closest("[data-lib-filter-clear]")) { libraryTags.clear(); libraryYears.clear(); libraryBestOnly = false; paintFilters(); paint(); return; }
+    const libYear = event.target.closest("[data-lib-year]");
+    if (libYear) {
+      const year = libYear.dataset.libYear;
+      libraryYears.has(year) ? libraryYears.delete(year) : libraryYears.add(year);
+      paintFilters();
+      paint();
+      return;
+    }
     if (event.target.closest("[data-lib-best]")) { libraryBestOnly = !libraryBestOnly; paintFilters(); paint(); return; }
     const tagFilter = event.target.closest("[data-lib-tag]");
     if (tagFilter) {
@@ -630,6 +672,7 @@ function renderLibrary() {
   paintUploads();
   paintFilters();
   paint();
+  if (store.quarantineAvailable() === null) store.loadQuarantine().then(() => { if (currentPage() === "library") paint(); }).catch(() => {});
   store.checkLibraryFiles().then((changed) => {
     if (changed && currentPage() === "library") paint();
   }).catch(() => {});
@@ -693,6 +736,7 @@ function openTagger(ids, index = 0, onDone = () => {}) {
         <label class="row"><span class="row-label">Title</span><input class="row-input" data-f="title" value="${esc(loop.title)}" autocomplete="off"></label>
         <label class="row"><span class="row-label">BPM</span><input class="row-input" data-f="bpm" value="${esc(loop.bpm ?? "")}" inputmode="numeric" placeholder="None" autocomplete="off"></label>
         <label class="row"><span class="row-label">Key</span><input class="row-input" data-f="key" value="${esc(loop.key ?? "")}" placeholder="None" autocomplete="off"></label>
+        <label class="row"><span class="row-label">Made</span><input class="row-input" type="month" data-f="made" value="${esc(loop.madeOn ?? "")}" min="2015-01"></label>
       </div>
       <div class="list" data-del-idle>
         <button class="row" type="button" data-del-open><span class="row-main row-danger">Delete loop</span></button>
@@ -931,7 +975,9 @@ function openTagger(ids, index = 0, onDone = () => {}) {
     const value = (name) => sheet.querySelector(`[data-f="${name}"]`).value.trim();
     const bpm = parseInt(value("bpm"), 10);
     const title = value("title") || loop.title;
-    store.updateLoop(loop.id, { title, bpm: Number.isFinite(bpm) ? bpm : null, key: value("key") || null, tags: [...draft] });
+    const made = value("made");
+    // Only sent when changed, so saving still works before database update 7.
+    store.updateLoop(loop.id, { title, bpm: Number.isFinite(bpm) ? bpm : null, key: value("key") || null, tags: [...draft], ...(made !== (loop.madeOn ?? "") ? { madeOn: made } : {}) });
     sheet.querySelector(".sheet-title").textContent = title;
     sheet.querySelector(".sheet-sub").textContent = [Number.isFinite(bpm) ? `${bpm} BPM` : "", sequence ? `${index + 1} of ${ids.length}` : ""].filter(Boolean).join(" · ");
     onDone();
@@ -1238,6 +1284,8 @@ function openPackSheet(packId, onChange = () => {}) {
     selected.clear();
     for (const id of pack.buildRecipe?.tagIds ?? []) if (knownTags.has(id)) selected.add(id);
     buildBestOnly = Boolean(pack.buildRecipe?.bestOnly);
+    buildYears.clear();
+    for (const year of pack.buildRecipe?.years ?? []) buildYears.add(String(year));
     buildContext = {
       sourcePackId: pack.id,
       recipientId: pack.recipientId ?? null,
@@ -1464,12 +1512,22 @@ function renderProfile(id) {
         <p class="list-label">Account</p>
         <div class="list">
           <div class="row"><div class="row-main row-field"><label for="profile-name">Name on loops and packs</label><input id="profile-name" data-name value="${esc(person.name)}" autocomplete="off"></div></div>
+          <div class="row" data-space hidden><span class="row-main">Dropbox space</span><span class="row-label row-count" data-space-text></span></div>
           <button class="row" type="button" data-signout><span class="row-main row-danger">Sign out</span></button>
         </div>` : ""}
     </section>`;
 
   setDock("me");
   const refresh = () => renderProfile(id);
+  if (own) {
+    const size = (bytes) => bytes >= 1e12 ? `${+(bytes / 1e12).toFixed(1)} TB` : `${Math.round(bytes / 1e9)} GB`;
+    store.dropboxSpace().then((space) => {
+      const row = view.querySelector("[data-space]");
+      if (!space || !row) return;
+      row.querySelector("[data-space-text]").textContent = `${size(Math.max(0, space.total - space.used))} free of ${size(space.total)}`;
+      row.hidden = false;
+    });
+  }
 
   const onClick = async (event) => {
     const fav = event.target.closest("[data-fav]");

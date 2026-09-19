@@ -38,6 +38,9 @@ The site deploys on push to `main`. The database and the server function do not:
 - **SQL change:** add a numbered file in `supabase/`, put it on the owner's
   clipboard (`pbcopy < supabase/update-N-*.sql`) and have him run it in
   Supabase → SQL Editor. Always write them to be safe to run twice.
+- **Update 7 (quarantine) needs both pastes**: `pbcopy < supabase/update-7-quarantine.sql`
+  first, then the function. Without them the Quarantine row stays hidden
+  and uploads to it are refused.
 - **Function change:** `pbcopy < supabase/functions/dropbox/index.ts`, then he
   pastes it into Supabase → Edge Functions → dropbox → Deploy. Nothing happens
   live until he does; say so every time.
@@ -59,6 +62,13 @@ The site deploys on push to `main`. The database and the server function do not:
 6. Deploy the function, JWT verification **off**.
 7. Put the project URL and publishable key into `js/config.js`.
 8. GitHub Pages: set the custom domain, add the DNS record, wait for the certificate.
+
+### Free Dropbox space on the You page
+
+The figure needs the `account_info.read` permission. If it doesn't appear, tick it
+in the Dropbox App Console → Permissions → Submit, then run
+`node setup/dropbox-token.mjs` again and replace `DROPBOX_REFRESH_TOKEN`. Nothing
+else depends on it.
 
 ## Troubleshooting
 

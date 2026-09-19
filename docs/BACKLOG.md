@@ -77,6 +77,11 @@ Keep entries short: goal, why, and how you will know it works.
 
 ## Done
 
+- [x] Quarantine and Purge (20 Sep 2026): separate upload with month and year and
+      several folders at once, swipe right/left/up (keep, reject, later) with undo
+      and resumable progress, rejected list, duplicate messages, year on loops and
+      a year filter in Library and Build (kept in the pack recipe), free Dropbox
+      space on You. Needs update 7 and the new function pasted in.
 - [x] Producer recipients and follow-up packs: reusable name/Instagram/picture
       badges, recipient search, saved Build recipes, immutable send history and
       “More like this” with source-pack exclusions. Live verified with Figurez.

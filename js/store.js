@@ -72,6 +72,7 @@ export async function init() {
     save();
   }
   state.recipients ??= [];
+  state.quarantine ??= [];
   for (const pack of state.packs) {
     pack.sentLoopIds ??= [...pack.loopIds];
     pack.recipientId ??= null;
@@ -251,6 +252,104 @@ export async function deleteLoop(loopId) {
   state.loops = state.loops.filter((l) => l.id !== loopId);
   save();
 }
+
+/* Quarantine (demo) ---------------------------------------------------------- */
+
+export async function loadQuarantine() { return true; }
+export const quarantineAvailable = () => true;
+export const quarantineList = () => state.quarantine;
+export const getQuarantineItem = (id) => state.quarantine.find((item) => item.id === id);
+
+export function quarantineKnown(name) {
+  const key = name.toLowerCase();
+  if (state.loops.some((loop) => loop.file.toLowerCase() === key)) return "library";
+  const item = state.quarantine.find((entry) => entry.file.toLowerCase() === key);
+  if (!item) return "";
+  return item.state === "kept" ? "library" : item.state === "rejected" ? "rejected" : "quarantine";
+}
+
+export async function addQuarantineFiles(files, month, onProgress = () => {}) {
+  const added = [];
+  added.skipped = [];
+  added.failed = [];
+  const emit = (update) => { try { onProgress(update); } catch { /* UI moved on */ } };
+  const seen = new Set();
+  const pending = [];
+  files.forEach((file, index) => {
+    const key = file.name.toLowerCase();
+    const reason = quarantineKnown(file.name) || (seen.has(key) ? "quarantine" : "");
+    if (reason) {
+      added.skipped.push(file.name);
+      emit({ file, index, status: "skipped", reason, progress: 1 });
+      return;
+    }
+    seen.add(key);
+    pending.push({ file, index });
+    emit({ file, index, status: "waiting", progress: 0 });
+  });
+  for (const { file, index } of pending) {
+    try {
+      emit({ file, index, status: "uploading", progress: 0.4 });
+      const id = uid();
+      const { duration } = await analyse(file).catch(() => ({ duration: 0 }));
+      await idbPut(id, file);
+      uploadUrls.set(id, URL.createObjectURL(file));
+      const item = {
+        id, quarantine: true, uploaded: true, file: file.name, ...parseName(file.name), tags: [], duration,
+        madeOn: month, state: "open", loopId: "", addedBy: state.user, addedAt: Date.now(), decidedBy: "", decidedAt: 0,
+      };
+      state.quarantine.push(item);
+      save();
+      added.push(item);
+      emit({ file, index, status: "done", progress: 1, loop: item });
+    } catch (error) {
+      const failure = { file, error: error instanceof Error ? error : new Error(String(error)) };
+      added.failed.push(failure);
+      emit({ file, index, status: "failed", progress: 0, error: failure.error });
+    }
+  }
+  return added;
+}
+
+export function quarantineDecide(id, decision) {
+  const item = getQuarantineItem(id);
+  if (!item) return;
+  item.state = decision;
+  item.decidedBy = state.user;
+  item.decidedAt = Date.now();
+  if (decision === "kept") {
+    // Same id, so the audio already on this device keeps playing.
+    const loop = { id: item.id, by: state.user, file: item.file, title: item.title, bpm: item.bpm, key: item.key, collabs: item.collabs, tags: [], bestOf: false, status: "open", duration: item.duration, uploaded: true, madeOn: item.madeOn, addedBy: item.addedBy, addedAt: Date.now() };
+    if (!state.loops.some((entry) => entry.id === id)) state.loops.push(loop);
+    item.loopId = id;
+  }
+  save();
+}
+
+export async function quarantineReopen(id) {
+  const item = getQuarantineItem(id);
+  if (!item) return;
+  if (item.state === "kept") {
+    const loop = getLoop(item.loopId);
+    if (loop?.tags.length) throw new Error("That loop already has tags, so it stays in the library.");
+    state.loops = state.loops.filter((entry) => entry.id !== item.loopId);
+    item.loopId = "";
+  }
+  item.state = "open";
+  item.decidedBy = "";
+  item.decidedAt = 0;
+  save();
+}
+
+export async function quarantinePurgeRejected(onProgress = () => {}) {
+  const gone = state.quarantine.filter((item) => item.state === "rejected");
+  state.quarantine = state.quarantine.filter((item) => item.state !== "rejected");
+  save();
+  onProgress(gone.length, 0);
+  return gone.length;
+}
+
+export async function dropboxSpace() { return { used: 21_000_000_000, total: 2_000_000_000_000 }; }
 
 /* Packs ------------------------------------------------------------------- */
 

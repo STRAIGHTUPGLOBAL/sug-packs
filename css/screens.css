@@ -97,7 +97,9 @@
 .card-verdict--keep span { background: var(--accent); color: #fff; box-shadow: 0 16px 40px rgba(73, 84, 230, 0.5); }
 .card-verdict--skip { background: rgba(0, 0, 0, 0.5); }
 .card-verdict--skip span { background: rgba(255, 255, 255, 0.16); color: #fff; }
-.card[data-lean="keep"] .card-verdict--keep, .card[data-lean="skip"] .card-verdict--skip { opacity: var(--pull, 0); }
+.card-verdict--later { background: rgba(0, 0, 0, 0.5); }
+.card-verdict--later span { background: rgba(255, 255, 255, 0.16); color: #fff; }
+.card[data-lean="keep"] .card-verdict--keep, .card[data-lean="skip"] .card-verdict--skip, .card[data-lean="later"] .card-verdict--later { opacity: var(--pull, 0); }
 
 .card-center { position: absolute; z-index: 1; inset: 0 0 44% 0; display: grid; place-items: center; align-content: center; gap: 14px; pointer-events: none; }
 .card-play {
@@ -308,3 +310,11 @@
 .notice { width: 100%; margin-top: 4px; color: var(--text-2); font-size: 15px; animation: rise 360ms var(--ease-out); }
 .notice-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .notice-actions .button { height: 36px; padding: 0 14px; font-size: 14px; }
+
+/* Purge ---------------------------------------------------------------------- */
+
+.swipe-actions--purge { gap: 16px; }
+.swipe-pile { justify-self: end; color: var(--text-3); font-size: 15px; font-weight: 500; }
+.purge-done { display: grid; gap: 12px; justify-items: center; margin: auto; text-align: center; }
+.purge-done h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+.purge-done p { color: var(--text-2); }

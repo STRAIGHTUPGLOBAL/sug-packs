@@ -30,6 +30,43 @@ not the people who receive packs. A producer/client such as Figurez is a
   recipient, content kind or weekly state as a tag just because tags exist.
 - The MVP stays samples-only while the producer follow-up workflow is built.
 
+## Quarantine: sorting the old loops
+
+Implementation status (20 Sep 2026): built and verified in the demo; needs
+database update 7 and the new Edge Function pasted in before it works live.
+
+Razz and 12 have roughly 3,000+ old loops (2026 alone is about 3,000; back to
+2022) and do not want the weak ones in the clean Library. So old loops go into
+a **Quarantine** first and are judged with the familiar swipe, without tagging.
+
+- **Samples only for now.** The table carries a `kind` (sample/starter/beat) so
+  Starters and Beats can get their own quarantine later. Do not build those yet.
+- **Upload is its own thing**, separate from the Library upload. Before an
+  upload the owner picks one **month and year**; every loop in it gets that
+  date. Several folders (Melodic and Hard of the same month) can be dropped at
+  once. Nothing is read from the old folder names: they are too inconsistent.
+  Uploads go month by month, newest first; the sheet suggests the previous month.
+- **Purge** is the swipe mode. Right = keep, left = reject, up = Later, plus
+  Undo. Newest month first, scrambled (but stable) within a month. It reopens at
+  the first undecided loop on any device: progress lives in the database. Later
+  is its own pile, worked when Open is empty. Whoever swipes first decides; the
+  name is stored.
+- **Keep** moves the file from `/Quarantine` to `/Library`; it becomes a normal
+  untagged loop ("needs tags") carrying its month. **Reject** only marks it; the
+  file stays until someone deletes all rejected on purpose. A rejected loop can
+  be moved back.
+- **Duplicates** are decided by exact file name across the Library and the
+  quarantine (any month). The upload summary says where each skipped file
+  already is: library, quarantine or the rejected list.
+- **Not offered anywhere else.** Quarantine loops never appear in Build, the
+  Library or packs until kept.
+- **Made (month and year)** is now a loop field. The Library and Build have a
+  year filter (several years = "either"); the year is part of the saved Build
+  recipe, so "More like this" keeps it. Old library loops have no date; they show
+  while no year is chosen.
+- The You page shows free Dropbox space when the Dropbox connection is allowed
+  to read it (`account_info.read`); otherwise it stays hidden.
+
 ## Next workflow: recipients and follow-up packs
 
 Implementation status (19 Sep 2026): live. The web, repeat-safe update 6 and
@@ -119,7 +156,7 @@ These are intentionally open; ask instead of silently choosing:
 - Where can recipients be created and edited: inline during pack creation, a
   small management sheet, or both?
 - Which exact filters form the reusable recipe beyond tags when BPM/key filters
-  are added later?
+  are added later? (Year is already part of it.)
 
 ### Recommended implementation slices
 

@@ -31,6 +31,7 @@ css/screens.css       swipe deck, pack page, cta, result screens, sheet
 js/app.js             start-up, sign-in, routing, Build, Library, tag sheet,
                       Packs stash, pack sheet, profile pages
 js/swipe.js           swipe session, deck, pack page, creating → done
+js/purge.js           Quarantine page, its upload sheet, rejected list, Purge deck
 js/data.js            picks live.js or store.js and re-exports the same names
 js/live.js            Supabase + Dropbox implementation
 js/store.js           demo implementation (localStorage + IndexedDB)
@@ -61,7 +62,10 @@ the same names, so the screens never know whether they are live or in the demo:
 `warm`, `cacheAudio`, `addFiles`, `setLoopStatus`, `listPacks`, `createPack`,
 `deletePack`, `renamePack`, `listRecipients`, `saveRecipient`, `myId`,
 `profileOf`, `people`, `setAvatar`,
-`isFavorite`, `favoriteCount`, `favoritesOf`, `toggleFavorite`, `notePackUse`.
+`isFavorite`, `favoriteCount`, `favoritesOf`, `toggleFavorite`, `notePackUse`,
+`loadQuarantine`, `quarantineAvailable`, `quarantineList`, `getQuarantineItem`,
+`quarantineKnown`, `addQuarantineFiles`, `quarantineDecide`, `quarantineReopen`,
+`quarantinePurgeRejected`, `dropboxSpace`.
 
 Everything is loaded into memory once (`init`) and read synchronously; writes
 update memory immediately and save in the background. `deletePack` and
@@ -86,6 +90,7 @@ the next finished batch replaces it or the page is reloaded.
 | `recipients` | producer/client display name, Instagram handle and small picture; separate from login profiles |
 | `packs` | name, mutable loop_ids[], immutable sent_loop_ids[], cleaning flags, recipient, source pack, Build recipe, Dropbox path/link, usage |
 | `pack_favorites` | (pack_id, user_id) |
+| `quarantine` | old loops waiting to be judged: like a loop plus `made_on`, `kind`, `state` (open, later, kept, rejected), who decided, and the library loop a kept one became |
 
 Access rules: sign-ups are off, so everyone with a login is a member.
 `is_member()` gates every table. Members read and write loops and tags, read
@@ -131,9 +136,28 @@ off (it checks the caller itself against `profiles`).
 | `undo_loop_status` | returns a placed loop to Open and restores its saved copies to surviving packs |
 | `play_links` | four-hour playback links, up to 25 at a time |
 | `create_pack` | copies loops into `/Packs/<name>` under cleaned names, shares the folder, writes the pack row |
+| `quarantine_upload_link` | like `upload_link`, into `/Quarantine`; refuses a name already in the Library or quarantine and says which |
+| `quarantine_keep` | moves a file to `/Library`, creates its loop row, marks it kept (repeat-safe) |
+| `quarantine_unkeep` | undoes a keep while the loop has no tags and is in no pack |
+| `quarantine_purge_rejected` | deletes rejected files and rows, a batch at a time |
+| `space` | Dropbox used / total; needs `account_info.read`, otherwise reports unavailable |
 | `create_pack_v2` | compatibility name for `create_pack` with recipient, source pack, recipe and immutable sent membership |
 | `rename_pack` | moves the Dropbox folder (the share link survives) and updates the row |
 | `delete_pack` | deletes the folder and the row; loops in `/Library` stay |
+
+### Quarantine
+
+Old loops live in `quarantine`, not in `loops`, so Build and the Library can
+never see them and the app doesn't load thousands of extra rows at start-up
+(`loadQuarantine()` runs when a page needs it). Members may insert rows and move
+a row between open, later and rejected straight from the browser (RLS refuses
+anything else); **only the server function may mark one kept**, because that
+moves the file. The web app uses new action names (`quarantine_*`), so deploying
+it before the function can never drop a file into `/Library` by accident.
+Decisions show at once and save through a small background queue.
+`loops.made_on` is the first of the month a loop was made; the app treats it as
+`madeOn: "YYYY-MM"`. Saving a loop only sends `made_on` when it changed, so the
+Library still works before update 7.
 
 ## A loop's life: open, reserved, placed
 
