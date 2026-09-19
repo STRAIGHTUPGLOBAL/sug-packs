@@ -108,7 +108,7 @@ Keep entries short: goal, why, and how you will know it works.
 - [x] Live: Supabase logins for Razz and 12, loops and tags in the database,
       uploads and packs in Dropbox through the server function.
 - [x] Pack stash: search by pack name or by a loop inside it, filters
-      All / Mine / Favourites, sort by recent, most sent or name.
+      All / Mine / Favourites and producer, sort by recent, most sent or name.
 - [x] Favourites, and "sent" counted when a link is copied.
 - [x] Rename and delete packs (Dropbox folder follows; link survives a rename).
 - [x] Profile pages: picture, name, counts, favourites, their packs, sign out.

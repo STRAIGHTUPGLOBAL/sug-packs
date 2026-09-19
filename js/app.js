@@ -959,6 +959,7 @@ function openTagger(ids, index = 0, onDone = () => {}) {
 let packFilter = "all";
 let packSort = "recent";
 let packQuery = "";
+let packRecipient = "";
 
 const SORTS = { recent: "Recent", used: "Most sent", name: "A–Z" };
 
@@ -1017,6 +1018,46 @@ function matchesQuery(pack, q) {
   return pack.loopIds.some((id) => store.getLoop(id)?.file.toLowerCase().includes(q));
 }
 
+function openPackRecipientFilter(onPick) {
+  const packs = store.listPacks();
+  const usedRecipientIds = new Set(packs.map((pack) => pack.recipientId).filter(Boolean));
+  const recipients = store.listRecipients().filter((recipient) => usedRecipientIds.has(recipient.id));
+  const hasUnassigned = packs.some((pack) => !pack.recipientId);
+  const sheet = openSheet(`
+    <div class="sheet-head">
+      <div class="row-main"><h2 class="sheet-title">Producer</h2><p class="sheet-sub">Filter packs</p></div>
+      <button class="icon-button" type="button" data-sheet-close aria-label="Close">${icon("x")}</button>
+    </div>
+    <div class="sheet-body">
+      <div class="list">
+        <button class="row row--media" type="button" data-pack-recipient="">
+          <span class="avatar avatar--sm">${icon("person")}</span>
+          <span class="row-main"><span class="row-title">Anyone</span></span>
+          ${!packRecipient ? icon("check", "row-chevron") : ""}
+        </button>
+        ${recipients.map((recipient) => `
+          <button class="row row--media" type="button" data-pack-recipient="${recipient.id}">
+            ${avatarHtml(recipient, "avatar--sm")}
+            <span class="row-main"><span class="row-title">${esc(recipient.name)}</span>${recipient.instagram ? `<span class="row-sub">@${esc(recipient.instagram)}</span>` : ""}</span>
+            ${packRecipient === recipient.id ? icon("check", "row-chevron") : ""}
+          </button>`).join("")}
+        ${hasUnassigned ? `
+          <button class="row row--media" type="button" data-pack-recipient="none">
+            <span class="avatar avatar--sm">—</span>
+            <span class="row-main"><span class="row-title">No producer</span></span>
+            ${packRecipient === "none" ? icon("check", "row-chevron") : ""}
+          </button>` : ""}
+      </div>
+    </div>`);
+
+  sheet.addEventListener("click", (event) => {
+    const choice = event.target.closest("[data-pack-recipient]");
+    if (!choice) return;
+    closeSheet();
+    onPick(choice.dataset.packRecipient);
+  });
+}
+
 function renderPacks() {
   view.innerHTML = `
     <section class="${pageClass()}">
@@ -1029,6 +1070,7 @@ function renderPacks() {
           <button class="chip" type="button" data-filter="all">All</button>
           <button class="chip" type="button" data-filter="mine">Mine</button>
           <button class="chip" type="button" data-filter="fav">${icon("star")} Favourites</button>
+          <button class="chip" type="button" data-recipient-filter></button>
           <button class="chip chip--sort" type="button" data-sort>${icon("sort")} <span data-sort-label></span></button>
         </div>
       </div>
@@ -1045,15 +1087,24 @@ function renderPacks() {
     const q = packQuery.trim().toLowerCase();
     const all = store.listPacks();
     const mine = store.myId();
+    const recipient = store.listRecipients().find((item) => item.id === packRecipient);
+    if (packRecipient && packRecipient !== "none" && !recipient) packRecipient = "";
     const shown = sortPacks(all.filter((pack) => matchesQuery(pack, q)
-      && (packFilter === "all" || (packFilter === "mine" ? pack.by === mine : store.isFavorite(pack.id)))));
+      && (packFilter === "all" || (packFilter === "mine" ? pack.by === mine : store.isFavorite(pack.id)))
+      && (!packRecipient || (packRecipient === "none" ? !pack.recipientId : pack.recipientId === packRecipient))));
 
     view.querySelectorAll("[data-filter]").forEach((chip) => chip.classList.toggle("is-on", chip.dataset.filter === packFilter));
     view.querySelector("[data-sort-label]").textContent = SORTS[packSort];
+    const recipientFilter = view.querySelector("[data-recipient-filter]");
+    recipientFilter.classList.toggle("is-on", Boolean(packRecipient));
+    recipientFilter.innerHTML = recipient
+      ? `${avatarHtml(recipient, "avatar--xs")} <span>${esc(recipient.name)}</span>`
+      : `${icon("person")} <span>${packRecipient === "none" ? "No producer" : "Producer"}</span>`;
+    recipientFilter.setAttribute("aria-label", `Filter by producer${recipient ? `: ${recipient.name}` : packRecipient === "none" ? ": No producer" : ""}`);
 
     listEl.innerHTML = shown.length
       ? `<ul class="list ${first ? "stagger" : ""}">${shown.map(packRow).join("")}</ul>`
-      : `<p class="empty">${q ? "Nothing found." : packFilter === "fav" ? "No favourites yet. Tap a star." : "No packs yet."}</p>`;
+      : `<p class="empty">${q || packRecipient ? "No matching packs." : packFilter === "fav" ? "No favourites yet. Tap a star." : "No packs yet."}</p>`;
 
     first = false;
   }
@@ -1072,6 +1123,12 @@ function renderPacks() {
     }
     const filter = event.target.closest("[data-filter]");
     if (filter) { packFilter = filter.dataset.filter; return paint(); }
+    if (event.target.closest("[data-recipient-filter]")) {
+      return openPackRecipientFilter((recipientId) => {
+        packRecipient = recipientId;
+        paint();
+      });
+    }
     if (event.target.closest("[data-sort]")) {
       const order = Object.keys(SORTS);
       packSort = order[(order.indexOf(packSort) + 1) % order.length];

@@ -57,7 +57,7 @@ Add a small reusable directory of pack recipients. A recipient needs:
 The owner must be able to assign a recipient while making a pack, and see that
 recipient on the finished pack. Use a compact avatar + name/handle treatment—a
 producer badge—not another large card. The recipient should also make packs
-findable in search.
+findable in search and directly filterable from the Packs page.
 
 Do not scrape Instagram or introduce an Instagram API as an unstated
 requirement. The first version can use a manually chosen/uploaded picture unless
