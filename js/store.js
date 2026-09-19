@@ -62,7 +62,7 @@ async function seed() {
     createdBy: p.createdBy,
     createdAt: now - p.daysAgo * DAY,
   }));
-  return { user: "Razz", tags, loops, packs, favorites: [], avatars: {} };
+  return { user: "Razz", tags, loops, packs, recipients: [], favorites: [], avatars: {} };
 }
 
 export async function init() {
@@ -71,6 +71,14 @@ export async function init() {
     state = await seed();
     save();
   }
+  state.recipients ??= [];
+  for (const pack of state.packs) {
+    pack.sentLoopIds ??= [...pack.loopIds];
+    pack.recipientId ??= null;
+    pack.sourcePackId ??= null;
+    pack.buildRecipe ??= null;
+  }
+  save();
 }
 
 export async function reset() {
@@ -248,7 +256,7 @@ export async function deleteLoop(loopId) {
 
 export const listPacks = () => [...state.packs].sort((a, b) => b.createdAt - a.createdAt);
 
-export async function createPack({ name, loopIds, removeSug, removeCollabs }, onProgress = () => {}) {
+export async function createPack({ name, loopIds, removeSug, removeCollabs, recipientId = null, sourcePackId = null, buildRecipe = null }, onProgress = () => {}) {
   // Live: Dropbox copies each loop server-side under its cleaned name, then
   // makes a shared link to the folder. Here we only pretend, at a believable pace.
   for (let i = 1; i <= loopIds.length; i++) {
@@ -260,8 +268,12 @@ export async function createPack({ name, loopIds, removeSug, removeCollabs }, on
     by: state.user,
     name,
     loopIds,
+    sentLoopIds: [...loopIds],
     removeSug,
     removeCollabs,
+    recipientId,
+    sourcePackId,
+    buildRecipe,
     link: `https://www.dropbox.com/scl/fo/demo${uid()}/${encodeURIComponent(name)}`,
     createdBy: state.user,
     createdAt: Date.now(),
@@ -269,6 +281,24 @@ export async function createPack({ name, loopIds, removeSug, removeCollabs }, on
   state.packs.push(pack);
   save();
   return pack;
+}
+
+export const listRecipients = () => [...(state.recipients ?? [])]
+  .filter((recipient) => !recipient.archived)
+  .sort((a, b) => a.name.localeCompare(b.name));
+
+export async function saveRecipient({ id = null, name, instagram = "", avatar = "" }) {
+  const cleanName = String(name ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
+  const cleanInstagram = String(instagram ?? "").trim().replace(/^@+/, "").slice(0, 30);
+  if (!cleanName) throw new Error("Add the producer's name.");
+  let recipient = id ? state.recipients.find((item) => item.id === id) : null;
+  if (recipient) Object.assign(recipient, { name: cleanName, instagram: cleanInstagram, avatar: avatar ?? "" });
+  else {
+    recipient = { id: uid(), name: cleanName, instagram: cleanInstagram, avatar: avatar ?? "", archived: false };
+    state.recipients.push(recipient);
+  }
+  save();
+  return recipient;
 }
 
 export async function deletePack(id) {

@@ -24,6 +24,7 @@ let profiles = new Map();
 let tags = [];
 let loops = [];
 let packs = [];
+let recipients = [];
 let loadedAt = 0;
 let favorites = new Map(); // pack id → set of user ids
 const links = new Map(); // loop id → { url, expires }
@@ -114,28 +115,43 @@ const fromPack = (row) => ({
   by: row.created_by,
   name: row.name,
   loopIds: row.loop_ids ?? [],
+  sentLoopIds: row.sent_loop_ids ?? row.loop_ids ?? [],
   removeSug: row.remove_sug,
   removeCollabs: row.remove_collabs,
+  recipientId: row.recipient_id ?? null,
+  sourcePackId: row.source_pack_id ?? null,
+  buildRecipe: row.build_recipe ?? null,
   link: row.link ?? "",
   uses: row.uses ?? 0,
   lastUsedAt: row.last_used_at ? Date.parse(row.last_used_at) : 0,
   createdBy: nameOf(row.created_by),
   createdAt: Date.parse(row.created_at),
 });
+const fromRecipient = (row) => ({
+  id: row.id,
+  name: row.name,
+  instagram: row.instagram_handle ?? "",
+  avatar: row.avatar ?? "",
+  archived: Boolean(row.archived),
+});
 
 export async function init() {
-  const [everyone, tagRows, loopRows, packRows, favRows] = await Promise.all([
+  const [everyone, tagRows, loopRows, packRows, favRows, recipientRows] = await Promise.all([
     fetchAll(() => sb.from("profiles").select("*").order("created_at")),
     fetchAll(() => sb.from("tags").select("id, grp, label").order("id")),
     fetchAll(() => sb.from("loops").select("*").order("added_at", { ascending: false })),
     fetchAll(() => sb.from("packs").select("*").order("created_at", { ascending: false })),
     // Favourites arrive with database update 2; without it the app simply has none.
     fetchAll(() => sb.from("pack_favorites").select("pack_id, user_id")).catch(() => []),
+    // Recipients arrive with database update 6. Until then the rest of the app
+    // remains fully usable and pack creation falls back to the older action.
+    fetchAll(() => sb.from("recipients").select("*").order("name")).catch(() => []),
   ]);
   profiles = new Map(everyone.map((p) => [p.id, { id: p.id, name: p.name, avatar: p.avatar ?? "", since: Date.parse(p.created_at) }]));
   tags = tagRows.map(fromTag);
   loops = loopRows.map(fromLoop);
   packs = packRows.map(fromPack);
+  recipients = recipientRows.map(fromRecipient);
   favorites = new Map();
   for (const row of favRows) {
     if (!favorites.has(row.pack_id)) favorites.set(row.pack_id, new Set());
@@ -460,14 +476,22 @@ export async function addFiles(files, onProgress = () => {}) {
 
 export const listPacks = () => packs;
 
-export async function createPack({ name, loopIds, removeSug, removeCollabs }, onProgress = () => {}) {
+export async function createPack({ name, loopIds, removeSug, removeCollabs, recipientId = null, sourcePackId = null, buildRecipe = null }, onProgress = () => {}) {
   const items = loopIds.map((id) => ({ loopId: id, as: packName(getLoop(id)?.file ?? "", { removeSug, removeCollabs }) }));
   const total = items.length;
   // Dropbox copies them in one go; count along so the screen shows movement.
   let shown = 0;
   const timer = setInterval(() => { if (shown < total - 1) onProgress(++shown, total); }, Math.max(60, 1600 / total));
   try {
-    const { pack } = await server("create_pack", { name, items, removeSug, removeCollabs });
+    let result;
+    try {
+      result = await server("create_pack_v2", { name, items, removeSug, removeCollabs, recipientId, sourcePackId, buildRecipe });
+    } catch (error) {
+      if (!/Unknown action/i.test(error.message)) throw error;
+      if (recipientId || sourcePackId) throw new Error("Deploy the latest Dropbox function before creating a producer pack.");
+      result = await server("create_pack", { name, items, removeSug, removeCollabs });
+    }
+    const { pack } = result;
     onProgress(total, total);
     const created = fromPack(pack);
     created.createdBy = me?.name ?? created.createdBy;
@@ -476,6 +500,26 @@ export async function createPack({ name, loopIds, removeSug, removeCollabs }, on
   } finally {
     clearInterval(timer);
   }
+}
+
+export const listRecipients = () => recipients
+  .filter((recipient) => !recipient.archived)
+  .sort((a, b) => a.name.localeCompare(b.name));
+
+export async function saveRecipient({ id = null, name, instagram = "", avatar = "" }) {
+  const cleanName = String(name ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
+  const cleanInstagram = String(instagram ?? "").trim().replace(/^@+/, "").slice(0, 30);
+  if (!cleanName) throw new Error("Add the producer's name.");
+  if (cleanInstagram && !/^[a-z0-9._]+$/i.test(cleanInstagram)) throw new Error("That Instagram handle doesn't look right.");
+  const values = { name: cleanName, instagram_handle: cleanInstagram || null, avatar: avatar || null };
+  const query = id
+    ? sb.from("recipients").update(values).eq("id", id)
+    : sb.from("recipients").insert(values);
+  const row = check(await query.select().single());
+  const recipient = fromRecipient(row);
+  const at = recipients.findIndex((item) => item.id === recipient.id);
+  if (at < 0) recipients.push(recipient); else recipients[at] = recipient;
+  return recipient;
 }
 
 // Rare, and worth being exact about: read everything back afterwards, so a

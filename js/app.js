@@ -27,6 +27,7 @@ let pendingTabDirection = 0;
 let entryTabDirection = 0;
 let signedIn = false;
 const selected = new Set();
+let buildContext = null;
 let tagQuery = "";
 let buildBestOnly = false;
 let libraryQuery = "";
@@ -231,14 +232,25 @@ function renderBuild() {
   const loops = store.listLoops();
   const tags = store.listTags();
   const byId = store.tagsById();
+  const excluded = new Set(buildContext?.excludedIds ?? []);
+  const sourcePack = buildContext?.sourcePackId ? store.listPacks().find((pack) => pack.id === buildContext.sourcePackId) : null;
+  const followUpRecipient = buildContext?.recipientId ? store.listRecipients().find((recipient) => recipient.id === buildContext.recipientId) : null;
   // Placed loops are sold: they never appear in a pack again.
-  const tagged = loops.filter((l) => l.tags.length && l.status !== "placed" && !l.missing);
+  const tagged = loops.filter((l) => l.tags.length && l.status !== "placed" && !l.missing && !excluded.has(l.id));
   const session = swipe.getSession();
   const resumable = session && !session.takeAll && session.index > 0 && session.index < session.deck.length;
 
   view.innerHTML = `
     <section class="${pageClass()}">
       ${header("build", brandedTitle("Build"))}
+      ${buildContext ? `
+        <div class="list follow-up-banner">
+          <div class="row row--media">
+            ${followUpRecipient ? avatarHtml(followUpRecipient, "avatar--sm") : `<span class="avatar avatar--sm">${icon("person")}</span>`}
+            <div class="row-main"><div class="row-title">More${followUpRecipient ? ` for ${esc(followUpRecipient.name)}` : " like this"}</div><div class="row-sub">${sourcePack ? `From ${esc(sourcePack.name)} · ` : ""}${plural(excluded.size, "loop")} excluded</div></div>
+            <button class="icon-button" type="button" data-cancel-follow-up aria-label="Cancel follow-up">${icon("x")}</button>
+          </div>
+        </div>` : ""}
       ${resumable ? `
         <div class="list list--spaced">
           <a class="row row--media" href="#/swipe">
@@ -257,10 +269,11 @@ function renderBuild() {
             <button class="chip chip--best ${buildBestOnly ? "is-on" : ""}" type="button" data-build-best aria-pressed="${buildBestOnly}">${icon("trophy")} Best of</button>
           </div>
         </div>
-        <div class="tag-groups" data-groups></div>` : `
+        <div class="tag-groups" data-groups></div>
+        ${buildContext ? '<p class="empty follow-up-empty" data-follow-up-empty hidden>No unused matches remain for these filters.</p>' : ""}` : `
         <div class="empty">
-          <p>No tagged loops yet.</p>
-          <a class="button" href="#/library">Open library</a>
+          <p>${buildContext ? "No unused tagged loops remain after excluding this pack." : "No tagged loops yet."}</p>
+          ${buildContext ? "" : '<a class="button" href="#/library">Open library</a>'}
         </div>`}
     </section>`;
 
@@ -308,6 +321,8 @@ function renderBuild() {
     });
     clearButton.style.opacity = selected.size || buildBestOnly ? "1" : "0";
     clearButton.style.pointerEvents = selected.size || buildBestOnly ? "auto" : "none";
+    const followUpEmpty = view.querySelector("[data-follow-up-empty]");
+    if (followUpEmpty) followUpEmpty.hidden = current().length !== 0;
     paintBar();
   }
 
@@ -352,6 +367,12 @@ function renderBuild() {
       button.setAttribute("aria-pressed", buildBestOnly);
       return paintState();
     }
+    if (event.target.closest("[data-cancel-follow-up]")) {
+      buildContext = null;
+      selected.clear();
+      buildBestOnly = false;
+      return go("#/build");
+    }
     const chip = event.target.closest("[data-tag]");
     if (chip) {
       const id = chip.dataset.tag;
@@ -370,11 +391,24 @@ function renderBuild() {
       return paintState();
     }
     if (event.target.closest("[data-start]")) {
-      swipe.startSession(current().map((l) => l.id), [...selected]);
+      swipe.startSession(current().map((l) => l.id), [...selected], {
+        recipientId: buildContext?.recipientId ?? null,
+        sourcePackId: buildContext?.sourcePackId ?? null,
+        excludedIds: buildContext?.excludedIds ?? [],
+        buildRecipe: { tagIds: [...selected], bestOnly: buildBestOnly },
+      });
+      buildContext = null;
       return go("#/swipe");
     }
     if (event.target.closest("[data-take-all]")) {
-      swipe.startSession(current().map((l) => l.id), [...selected], { takeAll: true });
+      swipe.startSession(current().map((l) => l.id), [...selected], {
+        takeAll: true,
+        recipientId: buildContext?.recipientId ?? null,
+        sourcePackId: buildContext?.sourcePackId ?? null,
+        excludedIds: buildContext?.excludedIds ?? [],
+        buildRecipe: { tagIds: [...selected], bestOnly: buildBestOnly },
+      });
+      buildContext = null;
       return go("#/pack");
     }
   };
@@ -938,6 +972,16 @@ const avatarHtml = (person, cls = "") => `<span class="avatar ${cls}">${person?.
   ? `<img src="${esc(person.avatar)}" alt="">`
   : esc(initials(person?.name))}</span>`;
 
+const recipientOf = (pack) => pack.recipientId
+  ? store.listRecipients().find((recipient) => recipient.id === pack.recipientId)
+  : null;
+
+const recipientBadge = (recipient) => recipient ? `
+  <span class="recipient-badge">
+    ${avatarHtml(recipient, "avatar--xs")}
+    <span>${esc(recipient.name)}</span>
+  </span>` : "";
+
 const packSub = (pack) => [
   plural(pack.loopIds.length, "loop"),
   esc(pack.createdBy),
@@ -950,6 +994,7 @@ const packRow = (pack, i) => `
     <span class="thumb" style="${coverStyle(pack.name)}"></span>
     <div class="row-main">
       <div class="row-title">${esc(pack.name)}</div>
+      ${recipientBadge(recipientOf(pack))}
       <div class="row-sub">${packSub(pack)}</div>
     </div>
     <button class="icon-button star ${store.isFavorite(pack.id) ? "is-on" : ""}" type="button" data-fav="${pack.id}" aria-label="Favourite">${icon("star")}</button>
@@ -967,6 +1012,8 @@ function sortPacks(list) {
 function matchesQuery(pack, q) {
   if (!q) return true;
   if (pack.name.toLowerCase().includes(q)) return true;
+  const recipient = recipientOf(pack);
+  if (recipient && (recipient.name.toLowerCase().includes(q) || recipient.instagram.toLowerCase().includes(q.replace(/^@/, "")))) return true;
   return pack.loopIds.some((id) => store.getLoop(id)?.file.toLowerCase().includes(q));
 }
 
@@ -1052,6 +1099,8 @@ function renderPacks() {
 function openPackSheet(packId, onChange = () => {}) {
   const pack = store.listPacks().find((p) => p.id === packId);
   if (!pack) return;
+  const recipient = recipientOf(pack);
+  const excludedCount = (pack.sentLoopIds?.length ? pack.sentLoopIds : pack.loopIds).length;
   let confirming = false;
 
   const sheet = openSheet(`
@@ -1060,6 +1109,7 @@ function openPackSheet(packId, onChange = () => {}) {
       <div class="row-main">
         <h2 class="sheet-title">${esc(pack.name)}</h2>
         <p class="sheet-sub">${packSub(pack)}${pack.lastUsedAt ? ` · last ${ago(pack.lastUsedAt)}` : ""}</p>
+        ${recipientBadge(recipient)}
       </div>
       <button class="icon-button" type="button" data-sheet-close aria-label="Close">${icon("x")}</button>
     </div>
@@ -1069,6 +1119,10 @@ function openPackSheet(packId, onChange = () => {}) {
         <button class="row" type="button" data-fav-row>
           <span class="row-main">${store.isFavorite(pack.id) ? "Remove from favourites" : "Add to favourites"}</span>
           ${icon("star", store.isFavorite(pack.id) ? "row-star is-on" : "row-star")}
+        </button>
+        <button class="row" type="button" data-follow-up>
+          <div class="row-main"><div class="row-title">More like this</div><div class="row-sub">${pack.buildRecipe ? "Same filters" : "Choose filters"} · excludes ${plural(excludedCount, "loop")}</div></div>
+          ${icon("chevron", "row-chevron")}
         </button>
       </div>
       <p class="list-label">Files</p>
@@ -1120,6 +1174,21 @@ function openPackSheet(packId, onChange = () => {}) {
   sheet.querySelector("[data-open]").addEventListener("click", () => {
     if (!pack.link) return toast("This pack has no link");
     window.open(pack.link, "_blank", "noopener");
+  });
+
+  sheet.querySelector("[data-follow-up]").addEventListener("click", () => {
+    const knownTags = store.tagsById();
+    selected.clear();
+    for (const id of pack.buildRecipe?.tagIds ?? []) if (knownTags.has(id)) selected.add(id);
+    buildBestOnly = Boolean(pack.buildRecipe?.bestOnly);
+    buildContext = {
+      sourcePackId: pack.id,
+      recipientId: pack.recipientId ?? null,
+      excludedIds: [...(pack.sentLoopIds?.length ? pack.sentLoopIds : pack.loopIds)],
+    };
+    swipe.endSession();
+    closeSheet();
+    setTimeout(() => go("#/build"), 280);
   });
 
   sheet.querySelector("[data-delete]").addEventListener("click", async (event) => {

@@ -34,6 +34,9 @@ Keep entries short: goal, why, and how you will know it works.
   Read the full requirements and open decisions in `PRODUCT.md` before schema
   or UI work. **Needs Razz** only for the decisions explicitly left open there;
   the stated minimum is one recipient and exclusion of the selected source pack.
+  Implementation is complete in update 6 and `create_pack_v2`; live completion
+  is waiting for the SQL paste, Edge Function deployment and one disposable
+  end-to-end pack test.
 
 - [ ] **Listen through a pack**
   Goal: open a pack and play it end to end, or shuffled, without leaving the app.

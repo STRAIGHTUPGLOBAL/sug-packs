@@ -5,7 +5,7 @@ import * as player from "./player.js";
 import * as store from "./data.js";
 import { tokens } from "./names.js";
 import { GROUPS } from "./tags.js";
-import { copyText, esc, icon, toast } from "./ui.js";
+import { closeSheet, copyText, esc, icon, openSheet, toast } from "./ui.js";
 
 const KEY = "sugpacks-session";
 let session = null;
@@ -18,7 +18,13 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export const getSession = () => session;
 
-export function startSession(loopIds, tagIds, { takeAll = false } = {}) {
+export function startSession(loopIds, tagIds, {
+  takeAll = false,
+  recipientId = null,
+  sourcePackId = null,
+  excludedIds = [],
+  buildRecipe = null,
+} = {}) {
   const tags = store.tagsById();
   const labels = tagIds.map((id) => tags.get(id)?.label).filter(Boolean);
   session = {
@@ -31,6 +37,10 @@ export function startSession(loopIds, tagIds, { takeAll = false } = {}) {
     removeSug: false,
     removeCollabs: false,
     takeAll,
+    recipientId,
+    sourcePackId,
+    excludedIds,
+    buildRecipe: buildRecipe ?? { tagIds: [...tagIds], bestOnly: false },
   };
   save();
 }
@@ -41,6 +51,121 @@ export function endSession() {
 }
 
 const meta = (loop) => [loop.bpm ? `${loop.bpm} BPM` : "", loop.key || "", loop.collabs.join(" ")].filter(Boolean).join(" · ");
+
+const initials = (name = "") => {
+  const clean = String(name).trim();
+  return (clean.length <= 2 ? clean : clean[0]).toUpperCase() || "?";
+};
+const recipientAvatar = (recipient, cls = "") => `<span class="avatar ${cls}">${recipient?.avatar
+  ? `<img src="${esc(recipient.avatar)}" alt="">`
+  : esc(initials(recipient?.name))}</span>`;
+
+async function avatarFromFile(file) {
+  const image = await createImageBitmap(file);
+  const side = Math.min(image.width, image.height);
+  const sx = (image.width - side) / 2;
+  const sy = (image.height - side) / 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 320;
+  canvas.getContext("2d").drawImage(image, sx, sy, side, side, 0, 0, 320, 320);
+  image.close?.();
+  return canvas.toDataURL("image/jpeg", 0.85);
+}
+
+function openRecipientEditor(recipient, onSaved) {
+  let avatar = recipient?.avatar ?? "";
+  const sheet = openSheet(`
+    <div class="sheet-head">
+      <div class="row-main"><h2 class="sheet-title">${recipient ? "Edit producer" : "New producer"}</h2><p class="sheet-sub">Who this pack is for</p></div>
+      <button class="icon-button" type="button" data-sheet-close aria-label="Close">${icon("x")}</button>
+    </div>
+    <div class="sheet-body">
+      <div class="recipient-editor-picture" data-preview>${recipientAvatar({ name: recipient?.name, avatar }, "avatar--xl")}</div>
+      <div class="list">
+        <label class="row row--tap">
+          <span class="row-main">Choose profile picture</span>${icon("camera", "row-chevron")}
+          <input type="file" accept="image/*" hidden data-recipient-photo>
+        </label>
+        <div class="row"><div class="row-main row-field"><label for="recipient-name">Name</label><input id="recipient-name" data-recipient-name value="${esc(recipient?.name ?? "")}" autocomplete="off" placeholder="Figurez"></div></div>
+        <div class="row"><div class="row-main row-field"><label for="recipient-instagram">Instagram</label><input id="recipient-instagram" data-recipient-instagram value="${esc(recipient?.instagram ? `@${recipient.instagram}` : "")}" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="@figurezmadeit"></div></div>
+      </div>
+    </div>
+    <div class="sheet-foot">
+      <button class="button" type="button" data-sheet-close>Cancel</button>
+      <button class="button button--primary" type="button" data-recipient-save>Save</button>
+    </div>`);
+
+  sheet.querySelector("[data-recipient-photo]").addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      avatar = await avatarFromFile(file);
+      const name = sheet.querySelector("[data-recipient-name]").value;
+      sheet.querySelector("[data-preview]").innerHTML = recipientAvatar({ name, avatar }, "avatar--xl");
+    } catch { toast("That picture didn't open"); }
+  });
+
+  sheet.querySelector("[data-recipient-save]").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = "Saving…";
+    try {
+      const saved = await store.saveRecipient({
+        id: recipient?.id ?? null,
+        name: sheet.querySelector("[data-recipient-name]").value,
+        instagram: sheet.querySelector("[data-recipient-instagram]").value,
+        avatar,
+      });
+      closeSheet();
+      toast(recipient ? "Producer updated" : "Producer added");
+      onSaved(saved);
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = "Save";
+      toast(error.message || "Couldn't save that producer");
+    }
+  });
+}
+
+function openRecipientPicker(currentId, onPick) {
+  const recipients = store.listRecipients();
+  const sheet = openSheet(`
+    <div class="sheet-head">
+      <div class="row-main"><h2 class="sheet-title">Producer</h2><p class="sheet-sub">Who this pack is for</p></div>
+      <button class="icon-button" type="button" data-sheet-close aria-label="Close">${icon("x")}</button>
+    </div>
+    <div class="sheet-body">
+      <div class="list">
+        <button class="row" type="button" data-pick-recipient=""><span class="avatar avatar--sm">—</span><div class="row-main"><div class="row-title">No producer</div></div>${!currentId ? icon("check", "row-chevron") : ""}</button>
+        ${recipients.map((recipient) => `
+          <div class="row row--media">
+            <button class="recipient-pick" type="button" data-pick-recipient="${recipient.id}">
+              ${recipientAvatar(recipient, "avatar--sm")}
+              <span class="row-main"><span class="row-title">${esc(recipient.name)}</span>${recipient.instagram ? `<span class="row-sub">@${esc(recipient.instagram)}</span>` : ""}</span>
+              ${recipient.id === currentId ? icon("check", "row-chevron") : ""}
+            </button>
+            <button class="icon-button" type="button" data-edit-recipient="${recipient.id}" aria-label="Edit ${esc(recipient.name)}">${icon("pencil")}</button>
+          </div>`).join("")}
+      </div>
+      <button class="button button--block" type="button" data-new-recipient>${icon("plus")} New producer</button>
+    </div>`);
+
+  sheet.addEventListener("click", (event) => {
+    const pick = event.target.closest("[data-pick-recipient]");
+    if (pick) {
+      const id = pick.dataset.pickRecipient || null;
+      closeSheet();
+      onPick(id);
+      return;
+    }
+    const edit = event.target.closest("[data-edit-recipient]");
+    const target = edit ? recipients.find((item) => item.id === edit.dataset.editRecipient) : null;
+    if (!edit && !event.target.closest("[data-new-recipient]")) return;
+    closeSheet();
+    setTimeout(() => openRecipientEditor(target, (saved) => onPick(saved.id)), 280);
+  });
+}
 
 function orderedTags(loop) {
   const byId = store.tagsById();
@@ -331,6 +456,13 @@ export function renderPack(view, go) {
         <div class="row"><div class="row-main row-field"><label for="pack-name">Name</label><input id="pack-name" data-name value="${esc(session.name)}" autocomplete="off" spellcheck="false"></div></div>
       </div>
       <div class="list">
+        <button class="row row--media" type="button" data-recipient>
+          ${session.recipientId ? recipientAvatar(store.listRecipients().find((item) => item.id === session.recipientId), "avatar--sm") : `<span class="avatar avatar--sm">${icon("person")}</span>`}
+          <div class="row-main"><div class="row-title">${session.recipientId ? esc(store.listRecipients().find((item) => item.id === session.recipientId)?.name ?? "Producer unavailable") : "Choose producer"}</div>${session.recipientId && store.listRecipients().find((item) => item.id === session.recipientId)?.instagram ? `<div class="row-sub">@${esc(store.listRecipients().find((item) => item.id === session.recipientId).instagram)}</div>` : ""}</div>
+          ${icon("chevron", "row-chevron")}
+        </button>
+      </div>
+      <div class="list">
         <label class="row"><span class="row-main">Remove @straightupglobal</span><span class="switch"><input type="checkbox" data-opt="removeSug" ${session.removeSug ? "checked" : ""}><span></span></span></label>
         ${hasCollabs ? `<label class="row"><span class="row-main">Remove collab tags</span><span class="switch"><input type="checkbox" data-opt="removeCollabs" ${session.removeCollabs ? "checked" : ""}><span></span></span></label>` : ""}
       </div>
@@ -373,6 +505,13 @@ export function renderPack(view, go) {
     if (event.target.closest("[data-toggle-skipped]")) {
       showSkipped = !showSkipped;
       return paint({ revealSkipped: showSkipped });
+    }
+    if (event.target.closest("[data-recipient]")) {
+      return openRecipientPicker(session.recipientId, (id) => {
+        session.recipientId = id;
+        save();
+        setTimeout(() => paint(), 280);
+      });
     }
     const play = event.target.closest("[data-play]");
     if (play) return player.toggle(store.getLoop(play.closest(".row").dataset.id));
@@ -424,7 +563,15 @@ export function renderPack(view, go) {
     const started = performance.now();
     let pack;
     try {
-      pack = await store.createPack({ name, loopIds: session.kept, removeSug: session.removeSug, removeCollabs: session.removeCollabs }, (done) => {
+      pack = await store.createPack({
+        name,
+        loopIds: session.kept,
+        removeSug: session.removeSug,
+        removeCollabs: session.removeCollabs,
+        recipientId: session.recipientId,
+        sourcePackId: session.sourcePackId,
+        buildRecipe: session.buildRecipe,
+      }, (done) => {
         // The screen may already be gone (someone navigated away): just skip it.
         const status = view.querySelector("[data-status]");
         if (status) status.textContent = `Copying ${done} of ${total}`;

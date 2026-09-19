@@ -14,6 +14,7 @@ export const {
   listLoops, getLoop, untagged, checkLibraryFiles, removeMissingLoops,
   updateLoop, setBestOf, audioUrl, warm, cacheAudio, addFiles, deleteLoop, setLoopStatus,
   listPacks, createPack, deletePack, renamePack,
+  listRecipients, saveRecipient,
   myId, profileOf, people, setAvatar, setPersonName,
   isFavorite, favoriteCount, favoritesOf, toggleFavorite, notePackUse,
 } = impl;

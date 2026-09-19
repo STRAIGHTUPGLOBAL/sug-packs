@@ -43,7 +43,7 @@ js/cover.js           name → gradient cover art
 js/ui.js              escaping, icons, toast, sheet, formatting, clipboard
 js/config.js          Supabase URL + publishable key; DEMO switch
 supabase/schema.sql   first database setup
-supabase/update-2-*.sql  profiles pictures, favourites, usage
+supabase/update-2-*.sql  numbered, repeat-safe database updates
 supabase/functions/dropbox/index.ts   the server function
 setup/dropbox-token.mjs               one-off Dropbox connection
 dev-server.mjs        local static server with byte ranges (port 8092)
@@ -59,7 +59,8 @@ the same names, so the screens never know whether they are live or in the demo:
 `tagsById`, `addTag`, `tagUseCount`, `listLoops`, `getLoop`, `untagged`,
 `checkLibraryFiles`, `removeMissingLoops`, `updateLoop`, `setBestOf`, `audioUrl`,
 `warm`, `cacheAudio`, `addFiles`, `setLoopStatus`, `listPacks`, `createPack`,
-`deletePack`, `renamePack`, `myId`, `profileOf`, `people`, `setAvatar`,
+`deletePack`, `renamePack`, `listRecipients`, `saveRecipient`, `myId`,
+`profileOf`, `people`, `setAvatar`,
 `isFavorite`, `favoriteCount`, `favoritesOf`, `toggleFavorite`, `notePackUse`.
 
 Everything is loaded into memory once (`init`) and read synchronously; writes
@@ -82,28 +83,32 @@ the next finished batch replaces it or the page is reloaded.
 | `profiles` | one row per login: name, avatar (a small JPEG data URL), created_at |
 | `tags` | `id` is `"<group>:<slug>"`, e.g. `genre:rnb`; groups: type, genre, vibe, instrument, artist |
 | `loops` | file name, `dropbox_path`, title, bpm, key, collabs[], tags[], duration, added_by, `status`, `best_of`, `placed_pack_copies` |
-| `packs` | name, loop_ids[], remove_sug, remove_collabs, dropbox_path, link, uses, last_used_at |
+| `recipients` | producer/client display name, Instagram handle and small picture; separate from login profiles |
+| `packs` | name, mutable loop_ids[], immutable sent_loop_ids[], cleaning flags, recipient, source pack, Build recipe, Dropbox path/link, usage |
 | `pack_favorites` | (pack_id, user_id) |
 
 Access rules: sign-ups are off, so everyone with a login is a member.
 `is_member()` gates every table. Members read and write loops and tags, read
-packs, and manage only their own favourites and their own profile row. Packs
-are written by the server function alone, and `uses` only moves through
+packs, jointly manage the small recipient directory, and manage only their own
+favourites and their own profile row. Packs are written by the server function
+alone, and `uses` only moves through
 `note_pack_use()`. Nothing is readable signed out.
 
-### Planned pack-history extension
+### Recipients and pack history
 
-The next product workflow assigns packs to producer/client recipients and makes
-a follow-up pack from an earlier pack. Read `PRODUCT.md` before designing it.
-Two new kinds of data are required and neither can be reconstructed reliably
-from today's mutable `packs.loop_ids`:
+Update 6 assigns packs to producer/client recipients and makes a follow-up pack
+from an earlier pack. Read `PRODUCT.md` before changing it. Two kinds of pack
+data are deliberately separate from mutable `packs.loop_ids`:
 
 - the exact Build recipe selected for the pack; and
 - immutable original sent membership for exclusions and history.
 
 A recipient is a separate domain object (display name, Instagram handle,
-picture), not an app member and not a sound tag. Keep new SQL idempotent and the
-web app compatible with packs created before this metadata exists.
+picture), not an app member and not a sound tag. `sent_loop_ids` is an immutable
+UUID array, so deleting a library row cannot erase the fact that it was sent.
+`build_recipe` stores selected tag ids and the Best of filter. Old packs have no
+recipe and use their best available membership for exclusions; the UI says
+"Choose filters" instead of pretending the recipe is known.
 
 Samples, starters and beats are also future first-class content kinds, not Type
 tags. The current database remains samples-only; do not start this migration as
@@ -126,6 +131,7 @@ off (it checks the caller itself against `profiles`).
 | `undo_loop_status` | returns a placed loop to Open and restores its saved copies to surviving packs |
 | `play_links` | four-hour playback links, up to 25 at a time |
 | `create_pack` | copies loops into `/Packs/<name>` under cleaned names, shares the folder, writes the pack row |
+| `create_pack_v2` | compatibility name for `create_pack` with recipient, source pack, recipe and immutable sent membership |
 | `rename_pack` | moves the Dropbox folder (the share link survives) and updates the row |
 | `delete_pack` | deletes the folder and the row; loops in `/Library` stay |
 
@@ -197,3 +203,6 @@ Nothing about who worked on a loop is ever thrown away.
   together. The deployed `delete_loop` action already tolerates a missing file.
 - **Avatars are data URLs in the database**, capped by a check constraint. No
   file storage is used anywhere.
+- **Current membership is not send history.** `packs.loop_ids` changes when a
+  loop is placed; follow-up exclusions use `sent_loop_ids`. Do not "simplify"
+  those fields into one.

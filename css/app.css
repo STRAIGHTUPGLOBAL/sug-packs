@@ -539,7 +539,34 @@ button.thumb:active { transform: scale(0.92); transition-duration: 80ms; }
   font-weight: 600;
 }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar--sm { width: 36px; height: 36px; font-size: 14px; }
+.avatar--sm .icon { width: 18px; height: 18px; }
+.avatar--xs { width: 22px; height: 22px; font-size: 10px; }
 .avatar--xl { width: 104px; height: 104px; font-size: 38px; }
+
+.recipient-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin-top: 5px;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+.recipient-pick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+.recipient-editor-picture { display: grid; place-items: center; padding: 8px 0 22px; }
+.follow-up-banner { margin-bottom: 20px; }
 
 /* The button holds the circle and the badge; only the circle clips. */
 .avatar-button { position: relative; padding: 0; border: 0; background: none; line-height: 0; }
