@@ -311,7 +311,7 @@ export async function addQuarantineFiles(files, month, onProgress = () => {}) {
   return added;
 }
 
-export function quarantineDecide(id, decision) {
+export function quarantineDecide(id, decision, { bestOf = false } = {}) {
   const item = getQuarantineItem(id);
   if (!item) return;
   item.state = decision;
@@ -319,7 +319,7 @@ export function quarantineDecide(id, decision) {
   item.decidedAt = Date.now();
   if (decision === "kept") {
     // Same id, so the audio already on this device keeps playing.
-    const loop = { id: item.id, by: state.user, file: item.file, title: item.title, bpm: item.bpm, key: item.key, collabs: item.collabs, tags: [], bestOf: false, status: "open", duration: item.duration, uploaded: true, madeOn: item.madeOn, addedBy: item.addedBy, addedAt: Date.now() };
+    const loop = { id: item.id, by: state.user, file: item.file, title: item.title, bpm: item.bpm, key: item.key, collabs: item.collabs, tags: [], bestOf, status: "open", duration: item.duration, uploaded: true, madeOn: item.madeOn, addedBy: item.addedBy, addedAt: Date.now() };
     if (!state.loops.some((entry) => entry.id === id)) state.loops.push(loop);
     item.loopId = id;
   }

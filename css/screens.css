@@ -99,6 +99,9 @@
 .card-verdict--skip span { background: rgba(255, 255, 255, 0.16); color: #fff; }
 .card-verdict--later { background: rgba(0, 0, 0, 0.5); }
 .card-verdict--later span { background: rgba(255, 255, 255, 0.16); color: #fff; }
+.card-verdict--best { background: rgba(240, 184, 75, 0.28); }
+.card-verdict--best span { background: var(--gold); color: #1B1405; box-shadow: 0 16px 40px rgba(240, 184, 75, 0.4); }
+.card[data-lean="best"] .card-verdict--best,
 .card[data-lean="keep"] .card-verdict--keep, .card[data-lean="skip"] .card-verdict--skip, .card[data-lean="later"] .card-verdict--later { opacity: var(--pull, 0); }
 
 .card-center { position: absolute; z-index: 1; inset: 0 0 44% 0; display: grid; place-items: center; align-content: center; gap: 14px; pointer-events: none; }
@@ -313,7 +316,9 @@
 
 /* Purge ---------------------------------------------------------------------- */
 
-.swipe-actions--purge { gap: 16px; }
+.swipe-actions--purge { gap: 8px; }
+.swipe-actions--purge .action--undo { width: 44px; height: 44px; }
+.action--best { color: var(--gold); }
 .swipe-pile { justify-self: end; color: var(--text-3); font-size: 15px; font-weight: 500; }
 .purge-done { display: grid; gap: 12px; justify-items: center; margin: auto; text-align: center; }
 .purge-done h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }

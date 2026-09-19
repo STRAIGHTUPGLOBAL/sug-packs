@@ -307,7 +307,7 @@ function openRejected(onChange) {
 
 /* Purge -------------------------------------------------------------------------- */
 
-const VERDICT = { kept: "keep", rejected: "skip", later: "later" };
+const VERDICT = { kept: "keep", rejected: "skip", later: "later", best: "best" };
 
 export function renderPurge(view, go) {
   const later = purgePile === "later";
@@ -326,6 +326,7 @@ export function renderPurge(view, go) {
         <button class="action" type="button" data-decide="rejected" aria-label="Reject">${icon("x")}</button>
         <button class="action action--undo" type="button" data-decide="later" aria-label="Later" title="Later">${icon("reserved")}</button>
         <button class="action action--undo" type="button" data-undo aria-label="Undo">${icon("undo")}</button>
+        <button class="action action--undo action--best" type="button" data-decide="best" aria-label="Keep as Best of" title="Keep as Best of">${icon("trophy")}</button>
         <button class="action action--keep" type="button" data-decide="kept" aria-label="Keep">${icon("check")}</button>
       </div>
     </section>`;
@@ -351,6 +352,7 @@ export function renderPurge(view, go) {
       <div class="card-verdict card-verdict--keep"><span>${icon("check")}</span></div>
       <div class="card-verdict card-verdict--skip"><span>${icon("x")}</span></div>
       <div class="card-verdict card-verdict--later"><span>${icon("reserved")}</span></div>
+      <div class="card-verdict card-verdict--best"><span>${icon("trophy")}</span></div>
     </article>`;
 
   function finished() {
@@ -451,18 +453,20 @@ export function renderPurge(view, go) {
       if (!dragging) return;
       dx = event.clientX - startX;
       dy = event.clientY - startY;
-      const up = dy < 0 && Math.abs(dy) > Math.abs(dx);
-      el.style.transform = up ? `translate(${dx * 0.3}px, ${dy}px)` : `translate(${dx}px, ${dy * 0.2}px) rotate(${dx / 22}deg)`;
-      el.dataset.lean = up && dy < -8 ? "later" : !up && dx > 8 ? "keep" : !up && dx < -8 ? "skip" : "";
-      el.style.setProperty("--pull", Math.min(1, (up ? Math.abs(dy) / 110 : Math.abs(dx) / 140)));
+      const vertical = Math.abs(dy) > Math.abs(dx);
+      const up = vertical && dy < 0;
+      const down = vertical && dy > 0;
+      el.style.transform = vertical ? `translate(${dx * 0.3}px, ${dy}px)` : `translate(${dx}px, ${dy * 0.2}px) rotate(${dx / 22}deg)`;
+      el.dataset.lean = up && dy < -8 ? "later" : down && dy > 8 ? "best" : !vertical && dx > 8 ? "keep" : !vertical && dx < -8 ? "skip" : "";
+      el.style.setProperty("--pull", Math.min(1, (vertical ? Math.abs(dy) / 110 : Math.abs(dx) / 140)));
     });
     const release = () => {
       if (!dragging) return;
       dragging = false;
       const elapsed = Math.max(1, performance.now() - startTime);
-      const up = dy < 0 && Math.abs(dy) > Math.abs(dx);
-      if (up && (Math.abs(dy) > el.clientHeight * 0.2 || (Math.abs(dy) > 40 && Math.abs(dy) / elapsed > 0.6))) return decide("later");
-      if (!up && (Math.abs(dx) > el.clientWidth * 0.3 || (Math.abs(dx) > 40 && Math.abs(dx) / elapsed > 0.6))) return decide(dx > 0 ? "kept" : "rejected");
+      const vertical = Math.abs(dy) > Math.abs(dx);
+      if (vertical && (Math.abs(dy) > el.clientHeight * 0.2 || (Math.abs(dy) > 40 && Math.abs(dy) / elapsed > 0.6))) return decide(dy < 0 ? "later" : "best");
+      if (!vertical && (Math.abs(dx) > el.clientWidth * 0.3 || (Math.abs(dx) > 40 && Math.abs(dx) / elapsed > 0.6))) return decide(dx > 0 ? "kept" : "rejected");
       if (Math.abs(dx) < 6 && Math.abs(dy) < 6) toggle(item);
       el.classList.add("is-settling");
       el.style.transform = "";
@@ -491,8 +495,8 @@ export function renderPurge(view, go) {
     card.style.setProperty("--pull", 1);
     card.classList.add("is-flying");
     requestAnimationFrame(() => {
-      card.style.transform = outcome === "later"
-        ? "translate(0, -125%)"
+      card.style.transform = outcome === "later" || outcome === "best"
+        ? `translate(0, ${outcome === "later" ? -125 : 125}%)`
         : `translate(${outcome === "kept" ? 130 : -130}%, 2%) rotate(${outcome === "kept" ? 16 : -16}deg)`;
       card.style.opacity = "0";
     });
@@ -509,6 +513,7 @@ export function renderPurge(view, go) {
     history.push({ id, outcome, before: item.state });
     // A card sent to Later while already in Later just goes to the back.
     if (outcome === "later" && later) deferred.add(id);
+    else if (outcome === "best") store.quarantineDecide(id, "kept", { bestOf: true });
     else store.quarantineDecide(id, outcome);
     navigator.vibrate?.(10);
 
@@ -526,7 +531,7 @@ export function renderPurge(view, go) {
     hit(view.querySelector("[data-undo]"));
     try {
       if (last.outcome === "later" && later) deferred.delete(last.id);
-      else if (last.outcome === "kept") {
+      else if (last.outcome === "kept" || last.outcome === "best") {
         await store.quarantineReopen(last.id);
         if (last.before === "later") store.quarantineDecide(last.id, "later");
       } else store.quarantineDecide(last.id, last.before);
@@ -546,6 +551,7 @@ export function renderPurge(view, go) {
     if (event.key === "ArrowRight") decide("kept");
     else if (event.key === "ArrowLeft") decide("rejected");
     else if (event.key === "ArrowUp") { event.preventDefault(); decide("later"); }
+    else if (event.key === "ArrowDown") { event.preventDefault(); decide("best"); }
     else if (event.key === " ") { event.preventDefault(); if (card) toggle(store.getQuarantineItem(card.dataset.id)); }
     else if (event.key.toLowerCase() === "z" || event.key === "Backspace") undo();
   };

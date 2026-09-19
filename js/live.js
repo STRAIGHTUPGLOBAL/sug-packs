@@ -629,7 +629,7 @@ async function drain() {
   deciding = false;
 }
 
-export function quarantineDecide(id, state) {
+export function quarantineDecide(id, state, { bestOf = false } = {}) {
   const item = queueById.get(id);
   if (!item) return;
   const before = { state: item.state, decidedBy: item.decidedBy, decidedAt: item.decidedAt, loopId: item.loopId };
@@ -648,6 +648,8 @@ export function quarantineDecide(id, state) {
         loop.addedBy = nameOf(row.added_by);
         if (!loops.some((entry) => entry.id === loop.id)) loops.unshift(loop);
         item.loopId = loop.id;
+        // A separate step, so the deployed function needs no change for it.
+        if (bestOf) await setBestOf(loop.id, true).catch(report);
       } catch (error) { revert(error, "keep"); }
       return;
     }

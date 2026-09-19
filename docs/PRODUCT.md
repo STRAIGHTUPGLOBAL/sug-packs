@@ -46,8 +46,8 @@ a **Quarantine** first and are judged with the familiar swipe, without tagging.
   date. Several folders (Melodic and Hard of the same month) can be dropped at
   once. Nothing is read from the old folder names: they are too inconsistent.
   Uploads go month by month, newest first; the sheet suggests the previous month.
-- **Purge** is the swipe mode. Right = keep, left = reject, up = Later, plus
-  Undo. Newest month first, scrambled (but stable) within a month. It reopens at
+- **Purge** is the swipe mode. Right = keep, left = reject, up = Later, down (or the trophy) = keep as
+  Best of, plus Undo. Newest month first, scrambled (but stable) within a month. It reopens at
   the first undecided loop on any device: progress lives in the database. Later
   is its own pile, worked when Open is empty. Whoever swipes first decides; the
   name is stored.
